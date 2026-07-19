@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SDT Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f8fa; --card:#ffffff; --line:#e5e9f0;
+    --text:#17212e; --muted:#66788c; --soft:#93a3b4;
+    --up:#0a9a62; --up-bg:#e9f9f1;
+    --down:#d93843; --down-bg:#fdeeef;
+    --flat:#7d8b9b; --flat-bg:#eef1f5;
+    --blue:#2b62d9; --blue-bg:#eef3fd;
+    --shadow:0 1px 2px rgba(23,33,46,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px}
+  .num{font-variant-numeric:tabular-nums}
+
+  .topbar{position:sticky;top:0;z-index:20;background:var(--card);
+    border-bottom:1px solid var(--line);padding:10px 20px;
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand{font-weight:700;font-size:16px;white-space:nowrap}
+  .brand span{color:var(--blue)}
+  .indices{display:flex;gap:22px;overflow-x:auto;flex:1;min-width:200px}
+  .idx{white-space:nowrap}
+  .idx .nm{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em}
+  .idx .px{font-size:14px;font-weight:600}
+  .idx .ch{font-size:12px;font-weight:500;margin-left:6px}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .updated{font-size:12px;color:var(--muted);white-space:nowrap}
+  .btn{background:var(--card);border:1px solid var(--line);color:var(--text);
+    font-family:inherit;font-weight:500;font-size:13px;padding:7px 14px;
+    border-radius:8px;cursor:pointer;white-space:nowrap}
+  .btn:hover{border-color:var(--blue);color:var(--blue)}
+  .btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.primary:hover{background:#2455c0;color:#fff}
+  .btn.sm{padding:4px 10px;font-size:12px}
+  .bell{position:relative;display:none}
+  .badge{position:absolute;top:-6px;right:-6px;background:var(--down);color:#fff;
+    font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+  .tabs{max-width:1400px;margin:0 auto;padding:16px 20px 0;display:flex;gap:8px;
+    overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{background:none;border:1px solid transparent;border-radius:9px;
+    white-space:nowrap;flex:0 0 auto;
+    font-family:inherit;font-size:13.5px;font-weight:600;color:var(--muted);
+    padding:8px 16px;cursor:pointer}
+  .tab.active{background:var(--card);border-color:var(--line);color:var(--text);
+    box-shadow:var(--shadow)}
+  .tab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;
+    max-width:1400px;margin:0 auto;padding:16px 20px 24px}
+  main{min-width:0}
+  h2{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--muted);margin:22px 0 10px}
+  h2:first-child{margin-top:0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+  .acard{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;box-shadow:var(--shadow)}
+  .acard .who{font-size:13px;font-weight:700}
+  .acard .legs{font-size:11px;color:var(--soft);font-weight:500;float:right}
+  .arow{display:flex;justify-content:space-between;align-items:baseline;margin-top:9px}
+  .arow .lbl{font-size:11.5px;color:var(--muted)}
+  .arow .val{font-size:14px;font-weight:600}
+  .bar{height:5px;background:var(--flat-bg);border-radius:3px;margin-top:10px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:3px}
+  .warn{font-size:11px;color:#b07b00;margin-top:8px}
+
+  .filters{display:flex;gap:10px;margin:18px 0 0;flex-wrap:wrap}
+  select,input[type=number],input[type=text]{background:var(--card);color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font-family:inherit;font-size:13px}
+  select:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+  input[readonly]{background:var(--flat-bg);color:var(--muted)}
+  input:disabled,select:disabled{background:var(--flat-bg);color:var(--soft)}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11px;font-weight:600;color:var(--muted);
+    letter-spacing:.05em;text-transform:uppercase}
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;padding:16px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow)}
+  .formfoot{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding-top:4px}
+  .chk{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .chk input{width:15px;height:15px;accent-color:var(--blue)}
+
+  .gen{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+  .code{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:13px 15px;box-shadow:var(--shadow)}
+  .code .chead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .code .cname{font-size:12.5px;font-weight:700;flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .code pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+    background:var(--blue-bg);border-radius:8px;padding:10px 12px;
+    white-space:pre-wrap;word-break:break-all;line-height:1.55}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;box-shadow:var(--shadow)}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:680px}
+  th{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:10px 12px;
+    border-bottom:1px solid var(--line);white-space:nowrap;background:#fafbfd}
+  td{font-size:13px;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.r,th.r{text-align:right}
+  td.dim{color:var(--muted)}
+  .pill{display:inline-block;min-width:78px;text-align:right;font-weight:600;
+    padding:3px 9px;border-radius:6px}
+  .pill.up{background:var(--up-bg)} .pill.down{background:var(--down-bg)}
+  .pill.flat{background:var(--flat-bg)}
+  .empty{padding:26px 16px;color:var(--muted);font-size:13px;text-align:center}
+
+  details.master{margin-top:14px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow)}
+  details.master summary{cursor:pointer;padding:13px 16px;font-size:13px;font-weight:700;
+    list-style:none;display:flex;align-items:center;gap:8px}
+  details.master summary::after{content:'▾';margin-left:auto;color:var(--muted)}
+  details.master[open] summary{border-bottom:1px solid var(--line)}
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:16px;padding:16px}
+  .mcol h3{font-size:11px;font-weight:600;color:var(--muted);
+    letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px}
+  .mlist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+  .mitem{display:flex;align-items:center;gap:6px;background:var(--flat-bg);
+    border-radius:7px;padding:5px 8px;font-size:12.5px}
+  .mitem .x{margin-left:auto;background:none;border:none;color:var(--muted);
+    cursor:pointer;font-size:13px;padding:0 3px}
+  .mitem .x:hover{color:var(--down)}
+  .madd{display:flex;gap:6px}
+  .madd input{flex:1;min-width:0;padding:6px 8px;font-size:12.5px}
+  .mfoot{padding:0 16px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .saved{font-size:12px;color:var(--up);font-weight:600}
+
+  aside{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);align-self:start;position:sticky;top:76px;
+    max-height:calc(100vh - 96px);display:flex;flex-direction:column}
+  .ahead{display:flex;align-items:center;gap:8px;padding:13px 16px;
+    border-bottom:1px solid var(--line)}
+  .ahead b{font-size:13px;font-weight:700}
+  .count{background:var(--down);color:#fff;font-size:11px;font-weight:700;
+    border-radius:9px;padding:1px 7px}
+  .count.zero{background:var(--flat)}
+  .nlist{overflow-y:auto;flex:1}
+  .nitem{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .nitem:last-child{border-bottom:none}
+  .nitem.done{opacity:.5}
+  .nitem input[type=checkbox]{width:17px;height:17px;margin-top:2px;
+    accent-color:var(--up);cursor:pointer;flex:none}
+  .nbody{min-width:0;flex:1}
+  .nl1{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;font-weight:600}
+  .nl1 .t{color:var(--soft);font-weight:500;font-size:11px;white-space:nowrap}
+  .nl2{font-size:12.5px;margin-top:2px}
+  .nl3{font-size:11px;color:var(--muted);margin-top:2px}
+  .done .nl2{text-decoration:line-through}
+  .nprice{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px}
+  .nprice .lbl{color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:10px}
+  .nprice input{width:92px;text-align:right;padding:5px 8px;font-size:12.5px}
+
+  /* mobile card lists (replace wide tables on phones) */
+  .mcards.mob-only{display:none}
+  .mcards{display:flex;flex-direction:column;gap:10px}
+  .mcard{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;box-shadow:var(--shadow)}
+  .mc1{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;min-width:0}
+  .mc1 .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc2{font-size:12px;color:var(--muted);margin-top:3px}
+  .mc3{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    margin-top:9px;font-size:12.5px;flex-wrap:wrap}
+  .mc3 .lbl{color:var(--muted)}
+  .tabs .ts{display:none}
+  .idx .pct{white-space:nowrap}
+
+  .error{margin:12px 0;background:var(--down-bg);border:1px solid var(--down);
+    color:var(--down);border-radius:10px;padding:10px 14px;font-size:13px;display:none}
+  footer{max-width:1400px;margin:0 auto;padding:0 20px 28px;color:var(--soft);font-size:11px}
+
+  @media (max-width:960px){
+    .layout{grid-template-columns:1fr;padding:14px}
+    .bell{display:inline-flex}
+    /* no horizontal scrolling on mobile: tables -> cards */
+    .desk-only{display:none !important}
+    .mcards.mob-only{display:flex}
+    .tabs .tl{display:none}
+    .tabs .ts{display:inline}
+    .tabs{padding:12px 14px 0;gap:6px}
+    .tab{padding:7px 9px;font-size:12px}
+    .topbar{gap:8px 12px;padding:10px 14px}
+    .indices{order:3;flex:1 1 100%;justify-content:space-between;gap:8px;overflow:visible}
+    .idx .nm{font-size:10px}
+    .idx .px{font-size:12.5px}
+    .idx .ch{font-size:10.5px;margin-left:0;display:block;margin-top:1px}
+    .idx .abs{display:none}
+    aside{position:fixed;top:0;right:0;bottom:0;width:min(340px,90vw);
+      border-radius:0;max-height:none;z-index:40;transform:translateX(105%);
+      transition:transform .22s ease}
+    aside.open{transform:none;box-shadow:-8px 0 28px rgba(23,33,46,.18)}
+    .close-x{display:inline-flex}
+    .updated{font-size:10.5px}
+    table{min-width:640px}
+  }
+  @media (prefers-reduced-motion:reduce){aside{transition:none}}
+  .close-x{display:none;margin-left:auto;background:none;border:none;font-size:18px;
+    color:var(--muted);cursor:pointer;padding:2px 6px}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(23,33,46,.28);z-index:30}
+  .overlay.show{display:block}
+  [hidden]{display:none !important}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--card);border:none;font-family:inherit;font-size:12px;
+    font-weight:600;color:var(--muted);padding:6px 12px;cursor:pointer}
+  .seg button.on{background:var(--blue);color:#fff}
+  .acc-row td{background:#eef2f8;font-weight:700;cursor:pointer}
+  .acc-row .car{display:inline-block;width:14px;color:var(--muted)}
+  .grow-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .grow-row:last-child{border-bottom:none}
+  .grow-row .stk{width:120px;flex:none;font-weight:700;font-size:13px}
+  .chipwrap{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+  .tfchip{display:inline-flex;align-items:center;justify-content:center;min-width:38px;
+    padding:4px 8px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:12px;
+    font-weight:700;border:1px solid var(--line);color:var(--muted);background:#f1f3f6}
+  .tfchip.long{background:var(--up-bg);border-color:var(--up);color:var(--up)}
+  .tfchip.short{background:var(--down-bg);border-color:var(--down);color:var(--down)}
+  .gate-btn{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--line);background:var(--card);cursor:pointer;font-family:inherit;
+    font-size:14.5px;font-weight:600;text-align:left}
+  .gate-btn:hover{border-color:var(--blue)}
+  .gate-btn .role{margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;
+    text-transform:uppercase;letter-spacing:.05em}
+  body.op aside{display:none !important}
+  body.op .layout{grid-template-columns:1fr}
+  body.op .bell{display:none !important}
+  .op-pending{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));
+    gap:12px;margin-bottom:20px}
+  .op-pending .mcard{margin:0;display:block}
+  .op-pending .nprice input{width:130px;font-size:15px;padding:8px 10px}
+  .editmoney{border-bottom:1px dashed var(--soft);cursor:pointer;white-space:nowrap}
+  .editmoney.ov{color:var(--blue);border-bottom-color:var(--blue)}
+  .editmoney:hover{color:var(--blue)}
+  .userchip{font-size:12px;font-weight:700;color:var(--muted);border:1px solid var(--line);
+    border-radius:99px;padding:4px 10px;white-space:nowrap}
+  @media (max-width:960px){ .hide-m{display:none} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SDT <span>Dashboard</span></div>
+  <div class="indices" id="indices">
+    <div class="idx"><div class="nm">NIFTY 50</div><div><span class="px num">—</span></div></div>
+    <div class="idx"><div class="nm">BANKNIFTY</div><div><span class="px num">—</span></div></div>
+    <div class="idx"><div class="nm">SENSEX</div><div><span class="px num">—</span></div></div>
+  </div>
+  <span class="userchip" id="userChip" hidden></span>
+  <div class="updated" id="updated">loading…</div>
+  <button class="btn" id="refreshBtn" onclick="load(true)">Refresh</button>
+  <button class="btn bell" onclick="togglePanel(true)" aria-label="Open notifications">
+    🔔<span class="badge" id="bellBadge" style="display:none">0</span>
+  </button>
+</div>
+
+<nav class="tabs">
+  <button class="tab active" id="tabDash" onclick="showTab('dash')"><span class="tl">Dashboard</span><span class="ts">Dash</span></button>
+  <button class="tab" id="tabPl" onclick="showTab('pl')"><span class="tl">P&amp;L</span><span class="ts">P&amp;L</span></button>
+  <button class="tab" id="tabCreate" onclick="showTab('create')"><span class="tl">Alert Creator</span><span class="ts">Creator</span></button>
+  <button class="tab" id="tabExec" onclick="showTab('exec')"><span class="tl">Execution Loss</span><span class="ts">Loss</span></button>
+  <button class="tab" id="tabAlerts" onclick="showTab('alerts')"><span class="tl">Alerts</span><span class="ts">Alerts</span></button>
+  <button class="tab" id="tabManual" onclick="showTab('manual')"><span class="tl">Manual Entry</span><span class="ts">Manual</span></button>
+  <button class="tab" id="tabDownload" onclick="showTab('download')"><span class="tl">Download</span><span class="ts">DL</span></button>
+  <button class="tab" id="tabSettings" onclick="showTab('settings')"><span class="tl">Settings</span><span class="ts">Settings</span></button>
+</nav>
+
+<div id="userGate" style="position:fixed;inset:0;background:var(--bg);z-index:99;display:flex;
+  align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow);padding:28px;max-width:420px;width:100%">
+    <h1 style="font-size:20px;margin:0 0 4px">SDT <span style="color:var(--blue)">Dashboard</span></h1>
+    <div class="hint" style="margin-bottom:16px">Who's working?</div>
+    <div id="gateUsers" style="display:flex;flex-direction:column;gap:8px">
+      <div class="empty">Loading users…</div>
+    </div>
+    <div id="gatePin" hidden style="margin-top:12px">
+      <label class="hint" for="gatePinInp">Admin PIN</label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <input type="password" id="gatePinInp" inputmode="numeric" style="flex:1"
+          onkeydown="if(event.key==='Enter')gateAdminGo()">
+        <button class="btn primary" onclick="gateAdminGo()">Enter</button>
+      </div>
+      <div class="hint" id="gatePinErr" style="color:var(--down)"></div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <main>
+    <div class="error" id="err"></div>
+
+    <!-- ==================== DASHBOARD TAB ==================== -->
+    <div id="viewDash">
+      <div id="opPendingWrap" hidden>
+        <h2 style="margin-top:0">Pending alerts — enter trade prices</h2>
+        <div class="op-pending" id="opPending"></div>
+      </div>
+
+      <div id="exposureWrap" style="padding:2px">
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+          <h2 style="margin-top:0">Account exposure</h2>
+          <span class="hint num" id="expStamp"></span>
+          <button class="btn sm" style="margin-left:auto" data-html2canvas-ignore
+            onclick="shareElement('exposureWrap','SDT_Exposure.png',this)">Share</button>
+        </div>
+        <div class="panel scroll desk-only">
+          <table style="min-width:940px">
+            <thead><tr>
+              <th>Account</th><th class="r">Total Fund</th><th class="r">Used Fund</th>
+              <th class="r">Available Fund</th><th class="r">Current Exposure</th>
+              <th class="r">Total Exposure</th><th class="r">Net / Total %</th>
+              <th class="r">Day-wise P&amp;L</th>
+            </tr></thead>
+            <tbody id="expBody"><tr><td colspan="8" class="empty">Waiting for data…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="mcards mob-only" id="expCards"></div>
+      </div>
+
+            <h2 style="margin-top:22px">Position grid — live long / short by timeframe</h2>
+      <div class="hint" style="margin-bottom:8px">Each chip is a timeframe; <b style="color:var(--up)">green = long</b>,
+        <b style="color:var(--down)">red = short</b>, grey = flat. Aggregated across accounts.</div>
+      <div class="panel" style="padding:12px" id="gridBox"></div>
+
+<div class="filters">
+        <select id="fAcc" onchange="render()"><option value="">All accounts</option></select>
+        <select id="fStock" onchange="render()"><option value="">All stocks</option></select>
+        <select id="fSide" onchange="render()">
+          <option value="">All positions</option>
+          <option value="buy">Buy (long)</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
+
+      <div id="positionsWrap">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:22px">
+          <h2 style="margin:0">Positions by leg</h2>
+          <div class="seg" data-html2canvas-ignore>
+            <button id="vDetail" class="on" onclick="setView('detail')">Detailed</button>
+            <button id="vCond" onclick="setView('cond')">Condensed</button>
+          </div>
+          <button class="btn sm" style="margin-left:auto" data-html2canvas-ignore
+            onclick="shareElement('positionsWrap','SDT_Positions.png',this)">Share</button>
+        </div>
+        <div class="hint" style="margin:4px 0 10px" data-html2canvas-ignore>
+          Condensed totals all timeframes per Account × Stock. Tap an account row to
+          expand / collapse its legs.</div>
+        <div class="mcards mob-only" id="legsCards"></div>
+        <div class="panel scroll desk-only">
+          <table>
+            <thead><tr>
+              <th>Sr</th><th>Account</th><th>Stock</th><th>Indicator</th>
+              <th class="r">TF</th><th class="r">Total Qty</th><th class="r">Qty (net)</th>
+              <th class="r">LTP</th><th class="r">Exposure</th>
+            </tr></thead>
+            <tbody id="legsBody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== P&L TAB ==================== -->
+    <div id="viewPl" hidden>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">Live day-wise P&amp;L</h2>
+        <div class="seg">
+          <button id="plAcc" class="on" onclick="setPlView('acc')">By Account</button>
+          <button id="plScrip" onclick="setPlView('scrip')">Account &amp; Scrip</button>
+        </div>
+        <span class="hint" id="plNote"></span>
+      </div>
+      <div class="hint" style="margin:6px 0 10px">Day-wise = open position × (futures LTP −
+        futures previous close). Realized / Unrealized / Total use average cost from your trades.</div>
+      <div class="panel scroll desk-only">
+        <table style="min-width:780px">
+          <thead><tr>
+            <th>Account</th><th id="plStockTh">Stock</th>
+            <th class="r" id="plPosTh">Position</th>
+            <th class="r" id="plPrevTh">Prev Close</th><th class="r" id="plLtpTh">LTP</th>
+            <th class="r">Day-wise P&amp;L</th>
+            <th class="r">Realized</th><th class="r">Unrealized</th><th class="r">Total P/L</th>
+          </tr></thead>
+          <tbody id="plBody"><tr><td colspan="9" class="empty">Waiting for data…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="mcards mob-only" id="plCards"></div>
+    </div>
+
+    <!-- ==================== ALERT CREATOR TAB ==================== -->
+    <div id="viewCreate" hidden>
+      <h2>Create a TradingView alert</h2>
+      <div class="formgrid">
+        <div class="field"><label for="cAcc">Account</label>
+          <select id="cAcc"></select>
+          <label class="chk" style="margin-top:4px"><input type="checkbox" id="cMulti"
+            onchange="multiChanged()"> All accounts in ONE alert</label></div>
+        <div class="field"><label for="cStock">Stock</label>
+          <select id="cStock" onchange="stockChanged()"></select></div>
+        <div class="field"><label for="cInd">Indicator</label>
+          <select id="cInd"></select></div>
+        <div class="field"><label for="cTf">Timeframe</label>
+          <select id="cTf"></select></div>
+        <div class="field"><label for="cMode">Side / Mode</label>
+          <select id="cMode" onchange="modeChanged()">
+            <option value="AUTO" selected>Auto — one alert, side from signal</option>
+            <option value="BUY">BUY only</option>
+            <option value="SELL">SELL only</option>
+            <option value="BOTH">BUY + SELL (two alerts)</option>
+            <option value="STRATEGY">Strategy (auto side + qty + position)</option>
+          </select></div>
+        <div class="field"><label for="cLot">Lot size</label>
+          <input type="number" id="cLot" readonly></div>
+        <div class="field"><label for="cLots">No. of lots</label>
+          <select id="cLots" onchange="lotsChanged()">
+            <option>1</option><option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>8</option><option>10</option>
+          </select></div>
+        <div class="field"><label for="cQty">Qty</label>
+          <input type="number" id="cQty" min="1"></div>
+        <div class="formfoot" id="multiQtys" hidden style="gap:10px"></div>
+        <div class="formfoot">
+          <label class="chk"><input type="checkbox" id="cPh" checked>
+            Use TradingView placeholders for Stock/TF ({{ticker}}, {{interval}})</label>
+          <button class="btn primary" id="genBtn" onclick="generate()">Generate alert code</button>
+        </div>
+      </div>
+      <div class="hint">Paste the <b>Alert name</b> into TradingView's alert-name box (it must start
+        with SDT for Gmail matching) and the <b>Message</b> into the message box, then enable
+        "Send email" in the alert's notifications.
+        <b>Auto mode</b> gives one alert for both directions — SIDE fills itself via
+        {{strategy.order.action}}, which resolves only when the chart runs a Pine
+        <b>strategy</b> (on a plain indicator it stays literal and the side would be wrong).</div>
+
+      <div class="gen" id="genOut"></div>
+
+      <h2>Alerts created today</h2>
+      <div class="mcards mob-only" id="histCards"></div>
+      <div class="panel scroll desk-only">
+        <table style="min-width:760px">
+          <thead><tr>
+            <th>Time</th><th>Account</th><th>Stock</th><th>Indicator</th>
+            <th class="r">TF</th><th>Mode</th><th class="r">Qty</th>
+            <th>Alert name</th><th></th>
+          </tr></thead>
+          <tbody id="histBody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ==================== EXECUTION LOSS TAB ==================== -->
+    <div id="viewExec" hidden>
+      <h2>Execution P/L — signal vs actual fill (today)</h2>
+      <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="execKite" class="hint">Checking Zerodha connection…</span>
+          <button class="btn primary" id="runBtn" onclick="runExec()">Run — fetch futures prices</button>
+          <span class="hint" id="runInfo"></span>
+        </div>
+        <div class="hint">On Run, for every alert without a futures price yet, the app fetches the
+          <b>current-month futures 1-minute candle close</b> at the alert's timestamp from Zerodha
+          (up to 40 rows per run — press Run again for the rest). Then type your actual trade
+          price in <b>My Price</b>; Exec P/L fills in automatically.
+          <b style="color:var(--up)">Green + = execution profit</b> (bought below / sold above the signal),
+          <b style="color:var(--down)">red − = execution loss</b>.
+          With the webhook active and your daily Kite login done, <b>Fut @ Signal is captured
+          live at the moment each alert arrives</b> (second-accurate); Run only back-fills rows the
+          live capture missed (session inactive, late delivery, or pre-webhook trades). Activate the API in Settings first.</div>
+      </div>
+
+      <div style="display:flex;gap:16px;align-items:baseline;margin:14px 0 10px;flex-wrap:wrap">
+        <h2 style="margin:0">Trades</h2>
+        <span class="hint num" id="execTotal"></span>
+      </div>
+      <div class="mcards mob-only" id="execCards"></div>
+      <div class="panel scroll desk-only">
+        <table style="min-width:820px">
+          <thead><tr>
+            <th>Time</th><th>Account</th><th>Stock</th><th class="r">TF</th>
+            <th>Side</th><th class="r">Qty</th><th class="r">Alert Px</th>
+            <th class="r">Fut @ Signal</th><th class="r">My Price</th>
+            <th class="r">P/L per Unit</th><th class="r">Exec P/L %</th>
+          </tr></thead>
+          <tbody id="execBody"><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ==================== MANUAL ENTRY TAB ==================== -->
+    <div id="viewManual" hidden>
+      <h2>Add a trade manually</h2>
+      <div class="hint" style="margin-bottom:10px">For opening balances or alerts that never
+        arrived — the trade is logged like any other and updates Positions by leg instantly.
+        It's saved as already-executed with the price you enter.</div>
+      <div class="formgrid">
+        <div class="field"><label for="mAcc">Account</label><select id="mAcc"></select></div>
+        <div class="field"><label for="mStock">Stock</label><select id="mStock"></select></div>
+        <div class="field"><label for="mInd">Indicator</label><select id="mInd"></select></div>
+        <div class="field"><label for="mTf">Timeframe</label><select id="mTf"></select></div>
+        <div class="field"><label for="mSide">Side</label>
+          <select id="mSide"><option>BUY</option><option>SELL</option></select></div>
+        <div class="field"><label for="mQty">Qty</label>
+          <input type="number" id="mQty" min="1" step="1"></div>
+        <div class="field"><label for="mPrice">Price</label>
+          <input type="number" id="mPrice" min="0" step="0.05"></div>
+        <div class="field"><label for="mTime">Date &amp; time</label>
+          <input type="datetime-local" id="mTime"></div>
+        <div class="formfoot">
+          <button class="btn primary" id="mAddBtn" onclick="addManual()">Add trade</button>
+          <span class="saved" id="mSaved" hidden>Added ✓</span>
+        </div>
+      </div>
+
+      <h2>Positions master — legs that always display</h2>
+      <div class="hint" style="margin-bottom:10px">Every chart you run belongs here. Listed legs
+        appear in Positions by leg even before any alert (Qty 0), with the Total Qty you set —
+        editable there any time. Editing a Total Qty on the dashboard also adds the leg here.</div>
+      <div class="formgrid">
+        <div class="field"><label for="lmAcc">Account</label><select id="lmAcc"></select></div>
+        <div class="field"><label for="lmStock">Stock</label><select id="lmStock"></select></div>
+        <div class="field"><label for="lmInd">Indicator</label><select id="lmInd"></select></div>
+        <div class="field"><label for="lmTf">Timeframe</label><select id="lmTf"></select></div>
+        <div class="field"><label for="lmQty">Total Qty (one side)</label>
+          <input type="number" id="lmQty" min="1" step="1"></div>
+        <div class="formfoot">
+          <button class="btn primary" onclick="addLegMaster()">Add leg</button>
+          <span class="saved" id="lmSaved" hidden>Saved ✓</span>
+        </div>
+      </div>
+      <div class="panel scroll" style="margin-top:12px">
+        <table style="min-width:560px">
+          <thead><tr>
+            <th>Account</th><th>Stock</th><th>Indicator</th>
+            <th class="r">TF</th><th class="r">Total Qty</th><th></th>
+          </tr></thead>
+          <tbody id="legMasterBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ==================== DOWNLOAD TAB ==================== -->
+    <div id="viewDownload" hidden>
+      <h2>Download data</h2>
+      <div class="formgrid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <div class="field"><label for="dlFrom">From date</label>
+          <input type="date" id="dlFrom"></div>
+        <div class="field"><label for="dlTo">To date (optional)</label>
+          <input type="date" id="dlTo"></div>
+        <div class="formfoot">
+          <button class="btn primary" id="dlBtn" onclick="doDownload()">Download Excel</button>
+          <span class="hint" id="dlStatus"></span>
+        </div>
+      </div>
+      <h2 style="margin-top:26px">Positions snapshot — end of day / next morning</h2>
+      <div class="hint" style="margin-bottom:10px"><b>Export</b> downloads today's open positions
+        (account, stock, indicator, TF, side, qty, average price, Total Qty) as a CSV.
+        <b>Import</b> loads that file back as opening balances — each row becomes an executed
+        trade at its average price. Legs that already hold an open position are skipped
+        automatically, so importing twice can't double your book.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn primary" id="expPosBtn" onclick="exportPos()">Export open positions</button>
+        <input type="file" id="impFile" accept=".csv,text/csv" style="max-width:230px">
+        <button class="btn" id="impPosBtn" onclick="importPos()">Import</button>
+        <span class="hint" id="posSnapStatus"></span>
+      </div>
+
+      <div class="hint" style="margin-top:22px">One .xlsx file with separate formatted sheets:
+        <b>Trade Log</b> (every alert with Qty, prices, Executed, Exec P/L %),
+        <b>Positions</b> (net per leg for the range),
+        <b>Execution P-L</b> (with weighted-average summary), and
+        <b>Alert Creator History</b>. Leave "To" empty for a single day.
+        The tabs above show only today's data — everything older is stored in the
+        background and downloadable here.</div>
+    </div>
+
+    <!-- ==================== SETTINGS TAB ==================== -->
+    <div id="viewSettings" hidden>
+      <h2>Zerodha Kite Connect</h2>
+      <div class="formgrid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+        <div class="field"><label for="kKey">API key</label>
+          <input type="text" id="kKey" autocomplete="off" placeholder="Kite Connect API key"></div>
+        <div class="field"><label for="kSecret">API secret</label>
+          <input type="text" id="kSecret" autocomplete="off" placeholder="Kite Connect API secret"></div>
+        <div class="formfoot">
+          <button class="btn primary" onclick="saveKeys()">Save keys</button>
+          <span class="saved" id="ksaved" hidden>Saved ✓</span>
+        </div>
+      </div>
+
+      <h2>Daily activation</h2>
+      <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="kStatus" class="hint">—</span>
+          <button class="btn primary" id="kLoginBtn" onclick="kiteLogin()">Login to Zerodha</button>
+        </div>
+        <div class="hint">Zerodha sessions expire every day, so connect once each morning before
+          using the Execution Loss tab. If your Kite app's <b>Redirect URL</b> is set to this
+          dashboard's URL (<span id="kAppUrl" class="num">—</span>
+          <button class="btn sm" onclick="copyText(KSTATUS.webAppUrl || '', this)">Copy</button>),
+          the connection completes automatically after login — this also pre-loads futures
+          contracts so webhook alerts get their live signal price stamped instantly all day. Otherwise, copy the
+          <b>request_token</b> from the redirected URL and paste it below.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="kReqTok" placeholder="request_token (manual fallback)" style="flex:1;min-width:220px">
+          <button class="btn" onclick="connectToken()">Connect</button>
+        </div>
+        <div class="hint">Note: Kite Connect is a paid Zerodha product and minute-candle history
+          needs their Historical Data add-on — check current pricing on developers.kite.trade.
+          Keys are stored only inside this Apps Script project in your own Google account.</div>
+      </div>
+
+      <div id="usersAdminBox" hidden>
+        <h2>Users — alert routing (admin)</h2>
+        <div class="hint" style="margin-bottom:10px">Choose which accounts' alerts each operator
+          sees in their Pending screen and Alerts tab. <b>All accounts</b> is the default.
+          Positions and other tabs are unaffected.</div>
+        <div class="panel scroll">
+          <table style="min-width:520px">
+            <thead><tr><th>User</th><th>Role</th><th>Accounts</th><th></th></tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
+          <span class="hint">Change admin PIN:</span>
+          <input type="password" id="pinNew" placeholder="new PIN" style="width:130px">
+          <button class="btn sm" onclick="changePin()">Update PIN</button>
+          <span class="saved" id="pinSaved" hidden>Updated ✓</span>
+        </div>
+      </div>
+
+      <h2>Instant alerts — TradingView webhook</h2>
+      <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+        <div class="hint">For 1–3 second trade ingestion (instead of the 1-minute Gmail cycle),
+          add this URL in your TradingView alert's <b>Webhook URL</b> box (needs TradingView
+          Pro or above). Keep "Send email" on as backup — duplicates are prevented automatically.
+          <b>Requires a deployment with access "Anyone"</b>: Deploy → New deployment → Web app →
+          Execute as Me → Who has access: Anyone → use that deployment's URL below. Anonymous
+          visitors to that URL cannot see your dashboard — it only accepts webhook posts.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="whUrl" readonly style="flex:1;min-width:240px" value="">
+          <button class="btn sm" onclick="copyText(document.getElementById('whUrl').value, this)">Copy</button>
+        </div>
+      </div>
+
+      <h2>Master — dropdown values (Alert Creator)</h2>
+      <details class="master" id="masterBox" open>
+        <summary>Master — dropdown values</summary>
+        <div class="mgrid" id="mgrid"></div>
+        <div class="mfoot">
+          <button class="btn primary" onclick="persistMaster()">Save master</button>
+          <span class="saved" id="msaved" hidden>Saved ✓</span>
+          <span class="hint">Add or remove values, then save — the Alert Creator dropdowns update instantly.</span>
+        </div>
+      </details>
+    </div>
+
+    <!-- ==================== ALERTS HISTORY TAB ==================== -->
+    <div id="viewAlerts" hidden>
+      <h2>Today's alerts</h2>
+      <div class="hint" style="margin-bottom:10px">Every alert received, executed or not.
+        Ticked alerts disappear from the dashboard's pending panel but stay here.
+        The full permanent history lives in the Trade Log sheet.</div>
+      <div class="mcards mob-only" id="alertsCards"></div>
+      <div class="panel scroll desk-only">
+        <table style="min-width:760px">
+          <thead><tr>
+            <th>Time</th><th>Account</th><th>Stock</th><th>Indicator</th>
+            <th class="r">TF</th><th>Side</th><th class="r">Qty</th>
+            <th class="r">Alert Px</th><th class="r">Trade Px</th>
+          </tr></thead>
+          <tbody id="alertsBody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <aside id="panel" aria-label="Notifications">
+    <div class="ahead">
+      <b>Notifications</b>
+      <span class="count zero" id="pendCount">0 pending</span>
+      <button class="close-x" onclick="togglePanel(false)" aria-label="Close">✕</button>
+    </div>
+    <div class="nlist" id="nlist"><div class="empty">No alerts yet.</div></div>
+  </aside>
+</div>
+
+<div class="overlay" id="overlay" onclick="togglePanel(false)"></div>
+
+<footer>Auto-refreshes every 15s (instant trade ingestion via TradingView webhook — see Settings) · Rates: Yahoo Finance / Google Finance (may be slightly delayed) ·
+Exposure = position qty × last traded price · Tick a notification once the actual trade is placed.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module" src="js/boot.js"></script>
+</body>
+</html>
