@@ -316,6 +316,57 @@ const Server = {
              manual: v === '' ? null : v, loss: upd.execPl, executed: v !== '' };
   },
 
+  async updateTrade(pin, id, p){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    const t = CACHE.trades.find(x => x.id === id);
+    if (!t) throw new Error('Trade not found.');
+    const clean = s => String(s || '').replace(/\|/g, '').trim();
+    const acc = clean(p.acc);
+    const stock = clean(p.stock).toUpperCase();
+    if (!acc || !stock) throw new Error('Account and Stock are required.');
+    let qty = Math.abs(Number(p.qty));
+    if (!qty || isNaN(qty)) throw new Error('Enter a valid Qty.');
+    const side = String(p.side || '').toUpperCase().startsWith('S') ? 'SELL' : 'BUY';
+    if (side === 'SELL') qty = -qty;
+    const normNum = (v, label) => {
+      if (v === '' || v == null) return null;
+      const n = Number(v);
+      if (isNaN(n) || n < 0) throw new Error('Enter a valid ' + label + '.');
+      return n;
+    };
+    const when = p.time ? new Date(p.time) : new Date(t.time || Date.now());
+    if (isNaN(when.getTime())) throw new Error('Enter a valid time.');
+    const upd = {
+      time: when.toISOString(),
+      acc,
+      stock,
+      ind: clean(p.ind),
+      tf: clean(p.tf),
+      lot: normNum(p.lot, 'lot'),
+      side,
+      qty,
+      alertPx: normNum(p.alertPx, 'alert price'),
+      tradePx: normNum(p.tradePx, 'trade price'),
+      pos: p.pos === '' || p.pos == null ? null : Number(p.pos)
+    };
+    if (upd.pos != null && isNaN(upd.pos)) throw new Error('Enter a valid position.');
+    upd.executed = upd.tradePx != null;
+    upd.execPl = recomputeExecPl(Object.assign({}, t, upd));
+    await setDoc('trades', id, upd, true);
+    Object.assign(t, upd);
+    return { ok: true };
+  },
+
+  async deleteTrade(pin, id){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    const t = CACHE.trades.find(x => x.id === id);
+    if (!t) throw new Error('Trade not found.');
+    await deleteDoc('trades', id);
+    CACHE.trades = CACHE.trades.filter(x => x.id !== id);
+    onDataChanged();
+    return { ok: true };
+  },
+
   async saveTotalQty(p){
     await ensureReady();
     const id = encodeURIComponent(legKey(p.acc, p.stock, p.ind, p.tf));

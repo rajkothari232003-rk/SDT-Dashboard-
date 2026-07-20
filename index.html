@@ -217,6 +217,14 @@
     color:var(--muted);cursor:pointer;padding:2px 6px}
   .overlay{display:none;position:fixed;inset:0;background:rgba(23,33,46,.28);z-index:30}
   .overlay.show{display:block}
+  .modal{position:fixed;inset:0;background:rgba(23,33,46,.35);z-index:60;
+    display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal-box{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 18px 50px rgba(23,33,46,.22);width:min(620px,100%)}
+  .modal-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .modal-head b{font-size:14px}
+  .modal-body{padding:16px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:0 16px 16px;flex-wrap:wrap}
   [hidden]{display:none !important}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{background:var(--card);border:none;font-family:inherit;font-size:12px;
@@ -696,7 +704,7 @@
           <thead><tr>
             <th>Time</th><th>Account</th><th>Stock</th><th>Indicator</th>
             <th class="r">TF</th><th>Side</th><th class="r">Qty</th>
-            <th class="r">Alert Px</th><th class="r">Trade Px</th>
+            <th class="r">Alert Px</th><th class="r">Trade Px</th><th class="r">Actions</th>
           </tr></thead>
           <tbody id="alertsBody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
         </table>
@@ -712,6 +720,43 @@
     </div>
     <div class="nlist" id="nlist"><div class="empty">No alerts yet.</div></div>
   </aside>
+</div>
+
+<div class="modal" id="tradeEditModal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <b>Edit trade</b>
+      <button class="close-x" style="display:inline-flex" onclick="closeTradeEdit()" aria-label="Close">x</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="teId">
+      <div class="formgrid">
+        <div class="field"><label for="teTime">Time</label>
+          <input type="datetime-local" id="teTime"></div>
+        <div class="field"><label for="teAcc">Account</label>
+          <input type="text" id="teAcc"></div>
+        <div class="field"><label for="teStock">Stock</label>
+          <input type="text" id="teStock"></div>
+        <div class="field"><label for="teInd">Indicator</label>
+          <input type="text" id="teInd"></div>
+        <div class="field"><label for="teTf">Timeframe</label>
+          <input type="text" id="teTf"></div>
+        <div class="field"><label for="teSide">Side</label>
+          <select id="teSide"><option>BUY</option><option>SELL</option></select></div>
+        <div class="field"><label for="teQty">Qty</label>
+          <input type="number" id="teQty" min="1" step="1"></div>
+        <div class="field"><label for="teAlertPx">Alert price</label>
+          <input type="number" id="teAlertPx" min="0" step="0.05"></div>
+        <div class="field"><label for="teTradePx">Trade price</label>
+          <input type="number" id="teTradePx" min="0" step="0.05"></div>
+      </div>
+      <div class="hint">Changing or deleting a trade recalculates dashboard open positions automatically.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeTradeEdit()">Cancel</button>
+      <button class="btn primary" onclick="saveTradeEdit(this)">Save trade</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="overlay" onclick="togglePanel(false)"></div>

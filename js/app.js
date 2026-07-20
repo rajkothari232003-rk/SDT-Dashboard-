@@ -350,6 +350,7 @@ function render(){
 /* ---------- alerts history tab (last 7 days) ---------- */
 function renderAlerts(){
   const notes = DATA.notifications.filter(n => isToday(n.time) && visibleToUser(n.acc));
+  const canManage = CURRENT_USER && CURRENT_USER.role === 'admin';
   document.getElementById('alertsBody').innerHTML = notes.length
     ? notes.map(n => `
       <tr style="${n.executed ? 'opacity:.6' : ''}">
@@ -365,8 +366,12 @@ function renderAlerts(){
           style="width:92px;text-align:right;padding:5px 8px"
           value="${n.tradePrice==null?'':n.tradePrice}"
           onchange="savePrice('${n.row}', this)" aria-label="Actual trade price"></td>
+        ${canManage ? `<td class="r">
+          <button class="btn sm" onclick="openTradeEdit('${n.row}')">Edit</button>
+          <button class="btn sm" onclick="deleteTradeRow('${n.row}', this)">Delete</button>
+        </td>` : '<td></td>'}
       </tr>`).join('')
-    : '<tr><td colspan="9" class="empty">No alerts today.</td></tr>';
+    : '<tr><td colspan="10" class="empty">No alerts today.</td></tr>';
 
   document.getElementById('alertsCards').innerHTML = notes.length
     ? notes.map(n => `
@@ -385,6 +390,84 @@ function renderAlerts(){
           <span>${n.executed?'<b class="up">✓ Executed</b>':'<b class="down">Pending</b>'}</span></div>
       </div>`).join('')
     : '<div class="mcard"><div class="mc2">No alerts today.</div></div>';
+}
+
+function dtLocal(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+    'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function openTradeEdit(row){
+  const n = DATA.notifications.find(x => x.row === row);
+  if (!n) { showErr('Trade not found.'); return; }
+  document.getElementById('teId').value = row;
+  document.getElementById('teAcc').value = n.acc || '';
+  document.getElementById('teStock').value = n.stock || '';
+  document.getElementById('teInd').value = n.ind || '';
+  document.getElementById('teTf').value = n.tf || '';
+  document.getElementById('teSide').value = n.qty < 0 ? 'SELL' : 'BUY';
+  document.getElementById('teQty').value = Math.abs(Number(n.qty) || 0);
+  document.getElementById('teAlertPx').value = n.price == null || n.price === '' ? '' : n.price;
+  document.getElementById('teTradePx').value = n.tradePrice == null ? '' : n.tradePrice;
+  document.getElementById('teTime').value = dtLocal(n.time);
+  document.getElementById('tradeEditModal').hidden = false;
+}
+function closeTradeEdit(){
+  document.getElementById('tradeEditModal').hidden = true;
+}
+function saveTradeEdit(btn){
+  clearErr();
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Saving...';
+  const payload = {
+    acc: document.getElementById('teAcc').value,
+    stock: document.getElementById('teStock').value,
+    ind: document.getElementById('teInd').value,
+    tf: document.getElementById('teTf').value,
+    side: document.getElementById('teSide').value,
+    qty: document.getElementById('teQty').value,
+    alertPx: document.getElementById('teAlertPx').value,
+    tradePx: document.getElementById('teTradePx').value,
+    time: document.getElementById('teTime').value
+  };
+  google.script.run
+    .withSuccessHandler(() => {
+      btn.disabled = false;
+      btn.textContent = old;
+      closeTradeEdit();
+      render();
+      if (!document.getElementById('viewExec').hidden) loadExec();
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false;
+      btn.textContent = old;
+      showErr('Could not save trade: ' + (e && e.message ? e.message : e));
+    })
+    .updateTrade(ADMIN_PIN_CACHE, document.getElementById('teId').value, payload);
+}
+function deleteTradeRow(row, btn){
+  clearErr();
+  if (!confirm('Delete this trade? Dashboard positions will recalculate immediately.')) return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Deleting...';
+  google.script.run
+    .withSuccessHandler(() => {
+      btn.disabled = false;
+      btn.textContent = old;
+      render();
+      if (!document.getElementById('viewExec').hidden) loadExec();
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false;
+      btn.textContent = old;
+      showErr('Could not delete trade: ' + (e && e.message ? e.message : e));
+    })
+    .deleteTrade(ADMIN_PIN_CACHE, row);
 }
 
 /**
