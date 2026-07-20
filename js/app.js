@@ -901,6 +901,8 @@ function renderUsersAdmin(){
   const box = document.getElementById('usersAdminBox');
   const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
   box.hidden = !isAdmin;
+  const dataBox = document.getElementById('dataAdminBox');
+  if (dataBox) dataBox.hidden = !isAdmin;
   if (!isAdmin) return;
   const accs = (DATA.accounts || []).map(a => a.acc);
   document.getElementById('usersBody').innerHTML = USERS.map((u, i) => {
@@ -953,6 +955,40 @@ function changePin(){
       document.getElementById('pinNew').value = ''; })
     .withFailureHandler(e => showErr((e && e.message ? e.message : e)))
     .setAdminPin(ADMIN_PIN_CACHE, np);
+}
+function clearTradingData(btn){
+  clearErr();
+  const ok = confirm('Delete all trades, pending alerts, positions, funds and alert history? Users, master lists and Kite settings will stay saved.');
+  if (!ok) return;
+  const typed = prompt('Type DELETE to confirm.');
+  if (typed !== 'DELETE') return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Deleting...';
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false;
+      btn.textContent = old;
+      const c = (res && res.counts) || {};
+      const msg = 'Deleted: ' +
+        (c.trades || 0) + ' trades, ' +
+        (c.legSizes || 0) + ' position overrides, ' +
+        (c.funds || 0) + ' funds rows, ' +
+        (c.alertHistory || 0) + ' alert history rows.';
+      const out = document.getElementById('clearDataSaved');
+      if (out) {
+        out.textContent = msg;
+        out.hidden = false;
+        setTimeout(() => out.hidden = true, 6000);
+      }
+      render();
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false;
+      btn.textContent = old;
+      showErr('Could not delete data: ' + (e && e.message ? e.message : e));
+    })
+    .clearTradingData(ADMIN_PIN_CACHE);
 }
 
 /* ---------- live P&L ---------- */

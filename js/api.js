@@ -211,6 +211,22 @@ const Server = {
     return Server.getUsers();
   },
 
+  async clearTradingData(pin){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    const counts = {
+      trades: await deleteCollection('trades'),
+      legSizes: await deleteCollection('legSizes'),
+      funds: await deleteCollection('funds'),
+      alertHistory: await deleteCollection('alertHistory')
+    };
+    CACHE.trades = [];
+    CACHE.legSizes = [];
+    CACHE.funds = {};
+    CACHE.history = [];
+    onDataChanged();
+    return { ok: true, counts };
+  },
+
   async getDashboardData(){
     await ensureReady();
     const overrides = {};
@@ -650,6 +666,23 @@ async function setDoc(coll, id, data, merge){
 async function deleteDoc(coll, id){
   if (DEMO_MODE) return;
   await fs.deleteDoc(fs.doc(db, coll, id));
+}
+async function deleteCollection(coll){
+  if (DEMO_MODE) return 0;
+  const snap = await fs.getDocs(fs.collection(db, coll));
+  let batch = fs.writeBatch(db);
+  let pending = 0, count = 0;
+  for (const d of snap.docs) {
+    batch.delete(d.ref);
+    pending++; count++;
+    if (pending === 450) {
+      await batch.commit();
+      batch = fs.writeBatch(db);
+      pending = 0;
+    }
+  }
+  if (pending) await batch.commit();
+  return count;
 }
 async function createDocIfAbsent(coll, id, data){
   if (DEMO_MODE) { CACHE.trades.push(Object.assign({ id }, data)); return; }
