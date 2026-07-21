@@ -107,15 +107,10 @@ function computePositions(){
     if (!r.acc || !r.stock || !r.qty) return;
     const key = legKey(r.acc, r.stock, r.ind, r.tf);
     if (!legs[key]) legs[key] = { acc: r.acc, stock: r.stock, ind: r.ind, tf: r.tf,
-      lot: r.lot, sumQty: 0, lastPos: null, lastPosTime: 0, maxAbs: 0 };
+      lot: r.lot, sumQty: 0, maxAbs: 0 };
     const leg = legs[key];
     leg.sumQty += Number(r.qty) || 0;
     leg.maxAbs = Math.max(leg.maxAbs, Math.abs(leg.sumQty), Math.abs(Number(r.qty) || 0));
-    const t = new Date(r.time).getTime() || 0;
-    if (r.pos !== '' && r.pos != null && t >= leg.lastPosTime) {
-      leg.lastPos = Number(r.pos); leg.lastPosTime = t;
-      leg.maxAbs = Math.max(leg.maxAbs, Math.abs(Number(r.pos)));
-    }
   });
   return Object.values(legs);
 }
@@ -240,7 +235,7 @@ const Server = {
     CACHE.legSizes.forEach(m => {
       if (!have.has(legKey(m.acc, m.stock, m.ind, m.tf))) {
         aggLegs.push({ acc: m.acc, stock: m.stock, ind: m.ind, tf: m.tf,
-          lot: '', sumQty: 0, lastPos: null, maxAbs: 0 });
+          lot: '', sumQty: 0, maxAbs: 0 });
       }
     });
     aggLegs.sort((a, b) =>
@@ -254,7 +249,7 @@ const Server = {
     try { q = await fetchQuotes(allStocks); } catch (e) { /* offline-tolerant */ }
 
     const legs = aggLegs.map((leg, i) => {
-      const qty = (leg.lastPos !== null) ? leg.lastPos : leg.sumQty;
+      const qty = leg.sumQty;
       const spot = q.spot[String(leg.stock)];
       const rate = spot && spot.price != null ? spot.price : null;
       const key = legKey(leg.acc, leg.stock, leg.ind, leg.tf);
@@ -649,8 +644,7 @@ const Server = {
     }
     const current = {};
     computePositions().forEach(l => {
-      current[legKey(l.acc, l.stock, l.ind, l.tf)] =
-        (l.lastPos !== null) ? l.lastPos : l.sumQty;
+      current[legKey(l.acc, l.stock, l.ind, l.tf)] = l.sumQty;
     });
     const now = new Date().toISOString();
     let imported = 0, skipped = 0;
