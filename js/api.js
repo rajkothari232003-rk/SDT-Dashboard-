@@ -115,40 +115,83 @@ function computePositions(){
   return Object.values(legs);
 }
 
+function tradePriceForPnl(r){
+  if (r.tradePx !== '' && r.tradePx != null) return Number(r.tradePx);
+  if (r.futAtSignal !== '' && r.futAtSignal != null) return Number(r.futAtSignal);
+  if (r.alertPx !== '' && r.alertPx != null) return Number(r.alertPx);
+  return null;
+}
+
+function applyAvgTrade(p, qty, price){
+  if (p.pos === 0 || p.pos * qty > 0) {
+    p.avg = (p.avg * Math.abs(p.pos) + price * Math.abs(qty)) /
+            (Math.abs(p.pos) + Math.abs(qty));
+    p.pos += qty;
+  } else {
+    const closeQty = Math.min(Math.abs(qty), Math.abs(p.pos));
+    p.realized += (price - p.avg) * closeQty * (p.pos > 0 ? 1 : -1);
+    p.pos += qty;
+    if (p.pos !== 0 && p.pos * qty > 0) p.avg = price;
+    if (p.pos === 0) p.avg = 0;
+  }
+}
+
 function computePnl(futLtps){
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const startMs = dayStart.getTime();
   const map = {}; let skipped = 0;
   CACHE.trades.slice().sort((a, b) => a.time < b.time ? -1 : 1).forEach(r => {
     const qty = Number(r.qty) || 0;
     if (!r.acc || !r.stock || !qty) return;
-    let price = (r.tradePx !== '' && r.tradePx != null) ? Number(r.tradePx)
-              : (r.alertPx !== '' && r.alertPx != null) ? Number(r.alertPx) : null;
-    if (price == null || isNaN(price)) { skipped++; return; }
     const key = r.acc + '||' + r.stock;
-    if (!map[key]) map[key] = { acc: r.acc, stock: r.stock, pos: 0, avg: 0, realized: 0 };
-    const p = map[key];
-    if (p.pos === 0 || p.pos * qty > 0) {
-      p.avg = (p.avg * Math.abs(p.pos) + price * Math.abs(qty)) /
-              (Math.abs(p.pos) + Math.abs(qty));
-      p.pos += qty;
-    } else {
-      const closeQty = Math.min(Math.abs(qty), Math.abs(p.pos));
-      p.realized += (price - p.avg) * closeQty * (p.pos > 0 ? 1 : -1);
-      p.pos += qty;
-      if (p.pos !== 0 && p.pos * qty > 0) p.avg = price;
-      if (p.pos === 0) p.avg = 0;
-    }
+    if (!map[key]) map[key] = { acc: r.acc, stock: r.stock, carry: 0, trades: [] };
+    const ms = new Date(r.time).getTime() || 0;
+    if (ms < startMs) map[key].carry += qty;
+    else map[key].trades.push(r);
   });
-  const rows = Object.values(map).map(p => {
-    const l = futLtps[p.stock];
+  const rows = Object.values(map).map(seed => {
+    const l = futLtps[seed.stock];
     const ltp = l ? l.price : null, prev = l ? l.prev : null;
-    const unreal = (ltp != null && p.pos !== 0) ? p.pos * (ltp - p.avg) : (p.pos === 0 ? 0 : null);
-    const day = (ltp != null && prev != null) ? p.pos * (ltp - prev) : (p.pos === 0 ? 0 : null);
+    const p = { acc: seed.acc, stock: seed.stock, pos: seed.carry,
+      avg: seed.carry ? prev : 0, realized: 0, incomplete: false };
+    if (seed.carry && (prev == null || isNaN(Number(prev)))) p.incomplete = true;
+    seed.trades.forEach(r => {
+      const qty = Number(r.qty) || 0;
+      const price = tradePriceForPnl(r);
+      if (price == null || isNaN(price) || p.avg == null || p.incomplete) {
+        skipped++;
+        p.pos += qty;
+        p.incomplete = true;
+        return;
+      }
+      applyAvgTrade(p, qty, Number(price));
+    });
+    const unreal = (ltp != null && p.pos !== 0 && !p.incomplete)
+      ? p.pos * (ltp - p.avg)
+      : (p.pos === 0 ? 0 : null);
+    const total = unreal == null ? null : p.realized + unreal;
     return { acc: p.acc, stock: p.stock, pos: p.pos,
-      avg: p.pos !== 0 ? p.avg : null, ltp, prev, src: l ? l.src : null,
-      realized: p.realized, unrealized: unreal, dayPnl: day,
-      total: unreal == null ? null : p.realized + unreal };
-  }).sort((a, b) => a.acc.localeCompare(b.acc) || a.stock.localeCompare(b.stock));
+      avg: p.pos !== 0 && !p.incomplete ? p.avg : null, ltp, prev, src: l ? l.src : null,
+      realized: p.realized, unrealized: unreal, dayPnl: total,
+      total };
+  }).filter(r => r.pos !== 0 || r.realized !== 0)
+    .sort((a, b) => a.acc.localeCompare(b.acc) || a.stock.localeCompare(b.stock));
   return { rows, skipped };
+}
+
+function computeBookAvgByLeg(){
+  const map = {};
+  CACHE.trades.slice().sort((a, b) => a.time < b.time ? -1 : 1).forEach(r => {
+    const qty = Number(r.qty) || 0;
+    const price = tradePriceForPnl(r);
+    if (!r.acc || !r.stock || !qty || price == null || isNaN(price)) return;
+    const key = legKey(r.acc, r.stock, r.ind, r.tf);
+    if (!map[key]) map[key] = { pos: 0, avg: 0, realized: 0 };
+    const p = map[key];
+    applyAvgTrade(p, qty, Number(price));
+  });
+  return map;
 }
 
 function recomputeExecPl(t){
@@ -594,37 +637,25 @@ const Server = {
   },
 
   async exportPositions(){
-    // per-leg avg cost, open only
-    const map = {};
-    CACHE.trades.slice().sort((a, b) => a.time < b.time ? -1 : 1).forEach(r => {
-      const qty = Number(r.qty) || 0;
-      let price = (r.tradePx != null && r.tradePx !== '') ? Number(r.tradePx)
-                : (r.alertPx != null && r.alertPx !== '') ? Number(r.alertPx) : null;
-      if (!r.acc || !r.stock || !qty || price == null) return;
-      const key = legKey(r.acc, r.stock, r.ind, r.tf);
-      if (!map[key]) map[key] = { acc: r.acc, stock: r.stock, ind: r.ind, tf: r.tf, pos: 0, avg: 0 };
-      const p = map[key];
-      if (p.pos === 0 || p.pos * qty > 0) {
-        p.avg = (p.avg * Math.abs(p.pos) + price * Math.abs(qty)) /
-                (Math.abs(p.pos) + Math.abs(qty));
-        p.pos += qty;
-      } else {
-        p.pos += qty;
-        if (p.pos !== 0 && p.pos * qty > 0) p.avg = price;
-        if (p.pos === 0) p.avg = 0;
-      }
-    });
+    // Export exactly the current dashboard open positions, not today's trade log.
+    const openLegs = computePositions().filter(l => Number(l.sumQty) !== 0);
+    const avgMap = computeBookAvgByLeg();
     const overrides = {};
     CACHE.legSizes.forEach(l => overrides[legKey(l.acc, l.stock, l.ind, l.tf)] = l.totalQty);
     const q = v => { v = String(v == null ? '' : v);
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     const lines = ['Account,Stock,Indicator,Timeframe,Side,Net Qty,Avg Price,Total Qty'];
-    Object.keys(map).sort().forEach(k => {
-      const p = map[k];
-      if (p.pos === 0) return;
+    openLegs.sort((a, b) =>
+      String(a.acc).localeCompare(String(b.acc)) ||
+      String(a.stock).localeCompare(String(b.stock)) ||
+      String(a.ind).localeCompare(String(b.ind)) ||
+      String(a.tf).localeCompare(String(b.tf))
+    ).forEach(p => {
+      const k = legKey(p.acc, p.stock, p.ind, p.tf);
+      const avg = avgMap[k] && avgMap[k].pos !== 0 ? Math.round(avgMap[k].avg * 100) / 100 : '';
       lines.push([q(p.acc), q(p.stock), q(p.ind), q(p.tf),
-        p.pos > 0 ? 'BUY' : 'SELL', Math.abs(p.pos),
-        Math.round(p.avg * 100) / 100, overrides[k] != null ? overrides[k] : ''].join(','));
+        p.sumQty > 0 ? 'BUY' : 'SELL', Math.abs(p.sumQty),
+        avg, overrides[k] != null ? overrides[k] : Math.max(p.maxAbs || 0, Math.abs(p.sumQty))].join(','));
     });
     const day = new Date().toISOString().slice(0, 10);
     return { filename: 'SDT_Positions_' + day + '.csv',

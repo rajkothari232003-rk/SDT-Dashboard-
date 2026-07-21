@@ -1107,7 +1107,7 @@ function renderPnl(){
       total:a.incomplete?null:a.realized+a.unrealized }));
   }
   const scrip = PLVIEW !== 'acc';
-  ['plStockTh','plPosTh','plPrevTh','plLtpTh'].forEach(id =>
+  ['plStockTh','plPosTh','plPrevTh','plAvgTh','plLtpTh'].forEach(id =>
     document.getElementById(id).style.display = scrip ? '' : 'none');
   document.getElementById('plBody').innerHTML = rows.length
     ? rows.map(r => `
@@ -1116,6 +1116,7 @@ function renderPnl(){
         ${!scrip ? '' : '<td>'+esc(r.stock)+(r.src==='spot'?' <span class="dim" style="font-size:10px">(spot)</span>':'')+'</td>' +
           '<td class="r"><span class="pill num '+cls(r.pos)+'"><span class="'+cls(r.pos)+'">'+(r.pos>0?'+':'')+fmt(r.pos,0)+'</span></span></td>' +
           '<td class="r dim num">'+(r.prev==null?'—':fmt(r.prev,2))+'</td>' +
+          '<td class="r dim num">'+(r.avg==null?'—':fmt(r.avg,2))+'</td>' +
           '<td class="r dim num">'+(r.ltp==null?'—':fmt(r.ltp,2))+'</td>'}
         <td class="r num ${plc(r.dayPnl)}"><b>${plfmt(r.dayPnl)}</b></td>
         <td class="r num ${plc(r.realized)}">${plfmt(r.realized)}</td>
