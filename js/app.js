@@ -1141,11 +1141,23 @@ function renderPnl(){
 }
 
 /* ---------- position grid (stock x timeframe, long/short) ---------- */
+function indShort(ind){
+  const s = String(ind || '').trim();
+  if (!s) return '';
+  const para = s.match(/^para\s*([0-9.]+)/i);
+  if (para) return 'P' + para[1];
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 6).toUpperCase();
+  return parts.map(p => (/^[0-9.]+$/.test(p) ? p : p[0])).join('').slice(0, 8).toUpperCase();
+}
 function renderGrid(){
   const agg = {};
   DATA.legs.forEach(l => {
     const s = (agg[l.stock] ||= {});
-    s[l.tf] = (s[l.tf] || 0) + l.qty;
+    const tf = String(l.tf || '');
+    const ind = String(l.ind || '');
+    const t = (s[tf] ||= {});
+    t[ind] = (t[ind] || 0) + l.qty;
   });
   const stocks = Object.keys(agg).sort();
   document.getElementById('gridBox').innerHTML = stocks.length
@@ -1153,9 +1165,15 @@ function renderGrid(){
         const tfs = Object.keys(agg[st]).sort((a,b)=>(Number(a)-Number(b))||a.localeCompare(b));
         return `<div class="grow-row"><span class="stk">${esc(st)}</span>
           <span class="chipwrap">${tfs.map(tf => {
-            const q = agg[st][tf];
-            const c = q > 0 ? 'long' : (q < 0 ? 'short' : '');
-            return `<span class="tfchip ${c}" title="net ${q>0?'+':''}${fmt(q,0)}">${esc(tf)}</span>`;
+            const byInd = agg[st][tf];
+            const inds = Object.keys(byInd).sort();
+            return inds.map(ind => {
+              const q = byInd[ind];
+              const c = q > 0 ? 'long' : (q < 0 ? 'short' : '');
+              const label = esc(tf) + (inds.length > 1 ? ` (${esc(indShort(ind))})` : '');
+              const full = [tf, ind].filter(Boolean).join(' · ');
+              return `<span class="tfchip ${c}" title="${esc(full)} net ${q>0?'+':''}${fmt(q,0)}">${label}</span>`;
+            }).join('');
           }).join('')}</span></div>`;
       }).join('')
     : '<div class="empty">No positions yet.</div>';
