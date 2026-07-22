@@ -348,8 +348,40 @@ function render(){
 }
 
 /* ---------- alerts history tab (last 7 days) ---------- */
+function syncAlertFilter(id, values, label){
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = el.value;
+  el.innerHTML = `<option value="">${label}</option>` +
+    values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (current && values.includes(current)) el.value = current;
+}
+function clearAlertFilters(){
+  ['alAcc','alStock','alInd','alTf','alStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderAlerts();
+}
 function renderAlerts(){
-  const notes = DATA.notifications.filter(n => isToday(n.time) && visibleToUser(n.acc));
+  const baseNotes = DATA.notifications.filter(n => isToday(n.time) && visibleToUser(n.acc));
+  const uniq = key => [...new Set(baseNotes.map(n => String(n[key] || '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  syncAlertFilter('alAcc', uniq('acc'), 'All accounts');
+  syncAlertFilter('alStock', uniq('stock'), 'All stocks');
+  syncAlertFilter('alInd', uniq('ind'), 'All indicators');
+  syncAlertFilter('alTf', uniq('tf'), 'All timeframes');
+  const fAcc = document.getElementById('alAcc')?.value || '';
+  const fStock = document.getElementById('alStock')?.value || '';
+  const fInd = document.getElementById('alInd')?.value || '';
+  const fTf = document.getElementById('alTf')?.value || '';
+  const fStatus = document.getElementById('alStatus')?.value || '';
+  const notes = baseNotes.filter(n =>
+    (!fAcc || n.acc === fAcc) &&
+    (!fStock || n.stock === fStock) &&
+    (!fInd || String(n.ind || '') === fInd) &&
+    (!fTf || String(n.tf || '') === fTf) &&
+    (!fStatus || (fStatus === 'executed' ? n.executed : !n.executed)));
   const canManage = CURRENT_USER && CURRENT_USER.role === 'admin';
   document.getElementById('alertsBody').innerHTML = notes.length
     ? notes.map(n => `

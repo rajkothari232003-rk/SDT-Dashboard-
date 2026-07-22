@@ -698,6 +698,26 @@
       <div class="hint" style="margin-bottom:10px">Every alert received, executed or not.
         Ticked alerts disappear from the dashboard's pending panel but stay here.
         The full permanent history lives in the Trade Log sheet.</div>
+      <div class="filters" style="margin:0 0 12px">
+        <select id="alAcc" onchange="renderAlerts()" aria-label="Filter alerts by account">
+          <option value="">All accounts</option>
+        </select>
+        <select id="alStock" onchange="renderAlerts()" aria-label="Filter alerts by stock">
+          <option value="">All stocks</option>
+        </select>
+        <select id="alInd" onchange="renderAlerts()" aria-label="Filter alerts by indicator">
+          <option value="">All indicators</option>
+        </select>
+        <select id="alTf" onchange="renderAlerts()" aria-label="Filter alerts by timeframe">
+          <option value="">All timeframes</option>
+        </select>
+        <select id="alStatus" onchange="renderAlerts()" aria-label="Filter alerts by status">
+          <option value="">All status</option>
+          <option value="pending">Pending</option>
+          <option value="executed">Executed</option>
+        </select>
+        <button class="btn sm" onclick="clearAlertFilters()">Clear</button>
+      </div>
       <div class="mcards mob-only" id="alertsCards"></div>
       <div class="panel scroll desk-only">
         <table style="min-width:760px">
