@@ -272,6 +272,7 @@
     <div class="idx"><div class="nm">SENSEX</div><div><span class="px num">—</span></div></div>
   </div>
   <span class="userchip" id="userChip" hidden></span>
+  <button class="btn sm" id="logoutBtn" onclick="logoutUser()" hidden>Log out</button>
   <div class="updated" id="updated">loading…</div>
   <button class="btn" id="refreshBtn" onclick="load(true)">Refresh</button>
   <button class="btn bell" onclick="togglePanel(true)" aria-label="Open notifications">
@@ -306,6 +307,8 @@
           onkeydown="if(event.key==='Enter')gateAdminGo()">
         <button class="btn primary" onclick="gateAdminGo()">Enter</button>
       </div>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="rememberPin">
+        Remember password on this device</label>
       <div class="hint" id="gatePinErr" style="color:var(--down)"></div>
     </div>
   </div>
@@ -324,20 +327,29 @@
 
       <div id="exposureWrap" style="padding:2px">
         <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-          <h2 style="margin-top:0">Account exposure</h2>
+          <h2 style="margin-top:0">Account summary</h2>
           <span class="hint num" id="expStamp"></span>
           <button class="btn sm" style="margin-left:auto" data-html2canvas-ignore
             onclick="shareElement('exposureWrap','SDT_Exposure.png',this)">Share</button>
         </div>
+        <h2 style="margin-top:10px">Exposure summary</h2>
         <div class="panel scroll desk-only">
-          <table style="min-width:940px">
+          <table style="min-width:620px">
+            <thead><tr>
+              <th>Account</th><th class="r">Exposure</th><th class="r">% Exposure</th>
+              <th class="r">Day P/L</th>
+            </tr></thead>
+            <tbody id="expBody"><tr><td colspan="4" class="empty">Waiting for data…</td></tr></tbody>
+          </table>
+        </div>
+        <h2 style="margin-top:14px">Funds summary</h2>
+        <div class="panel scroll desk-only">
+          <table style="min-width:620px">
             <thead><tr>
               <th>Account</th><th class="r">Total Fund</th><th class="r">Used Fund</th>
-              <th class="r">Available Fund</th><th class="r">Current Exposure</th>
-              <th class="r">Total Exposure</th><th class="r">Net / Total %</th>
-              <th class="r">Day-wise P&amp;L</th>
+              <th class="r">Available Fund</th>
             </tr></thead>
-            <tbody id="expBody"><tr><td colspan="8" class="empty">Waiting for data…</td></tr></tbody>
+            <tbody id="fundBody"><tr><td colspan="4" class="empty">Waiting for data…</td></tr></tbody>
           </table>
         </div>
         <div class="mcards mob-only" id="expCards"></div>
@@ -397,6 +409,11 @@
       </div>
       <div class="hint" style="margin:6px 0 10px">Day-wise = open position × (futures LTP −
         futures previous close). Realized / Unrealized / Total use average cost from your trades.</div>
+      <div class="filters" style="margin:0 0 12px">
+        <select id="plFilterAcc" onchange="renderPnl()"><option value="">All accounts</option></select>
+        <select id="plFilterStock" onchange="renderPnl()"><option value="">All stocks</option></select>
+        <button class="btn sm" onclick="clearPnlFilters()">Clear</button>
+      </div>
       <div class="panel scroll desk-only">
         <table style="min-width:780px">
           <thead><tr>
@@ -496,6 +513,18 @@
       <div style="display:flex;gap:16px;align-items:baseline;margin:14px 0 10px;flex-wrap:wrap">
         <h2 style="margin:0">Trades</h2>
         <span class="hint num" id="execTotal"></span>
+      </div>
+      <div class="filters" style="margin:0 0 12px">
+        <select id="exFilterAcc" onchange="renderExec()"><option value="">All accounts</option></select>
+        <select id="exFilterStock" onchange="renderExec()"><option value="">All stocks</option></select>
+        <select id="exFilterInd" onchange="renderExec()"><option value="">All indicators</option></select>
+        <select id="exFilterTf" onchange="renderExec()"><option value="">All timeframes</option></select>
+        <select id="exFilterStatus" onchange="renderExec()">
+          <option value="">All status</option>
+          <option value="pending">Pending</option>
+          <option value="filled">Filled</option>
+        </select>
+        <button class="btn sm" onclick="clearExecFilters()">Clear</button>
       </div>
       <div class="mcards mob-only" id="execCards"></div>
       <div class="panel scroll desk-only">

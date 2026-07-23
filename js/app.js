@@ -175,6 +175,26 @@ function render(){
       </tr>`).join('')
     : '<tr><td colspan="8" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
 
+  document.getElementById('expBody').innerHTML = accs.length
+    ? accs.map(a => `
+      <tr>
+        <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!</span>' : ''}</td>
+        <td class="r num ${cls(a.net)}"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
+        <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
+        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'—':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
+
+  document.getElementById('fundBody').innerHTML = accs.length
+    ? accs.map(a => `
+      <tr>
+        <td><b>${esc(a.acc)}</b></td>
+        <td class="r">${fundCell(a,'total')}</td>
+        <td class="r">${fundCell(a,'used')}</td>
+        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'—':money(a.netAvail)}</b></td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No funds yet.</td></tr>';
+
   document.getElementById('expCards').innerHTML = accs.length
     ? accs.map(a => `
       <div class="mcard">
@@ -763,6 +783,13 @@ function loadExec(){
     .getExecLossData();
 }
 
+function clearExecFilters(){
+  ['exFilterAcc','exFilterStock','exFilterInd','exFilterTf','exFilterStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderExec();
+}
 function renderExec(){
   const k = EXEC.kite || {};
   const st = document.getElementById('execKite');
@@ -775,7 +802,24 @@ function renderExec(){
   }
   document.getElementById('runBtn').disabled = !k.connected;
 
-  const rows = EXEC.rows.filter(r => isToday(r.time));
+  const baseRows = EXEC.rows.filter(r => isToday(r.time));
+  const uniq = key => [...new Set(baseRows.map(r => String(r[key] || '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  syncAlertFilter('exFilterAcc', uniq('acc'), 'All accounts');
+  syncAlertFilter('exFilterStock', uniq('stock'), 'All stocks');
+  syncAlertFilter('exFilterInd', uniq('ind'), 'All indicators');
+  syncAlertFilter('exFilterTf', uniq('tf'), 'All timeframes');
+  const fAcc = document.getElementById('exFilterAcc')?.value || '';
+  const fStock = document.getElementById('exFilterStock')?.value || '';
+  const fInd = document.getElementById('exFilterInd')?.value || '';
+  const fTf = document.getElementById('exFilterTf')?.value || '';
+  const fStatus = document.getElementById('exFilterStatus')?.value || '';
+  const rows = baseRows.filter(r =>
+    (!fAcc || r.acc === fAcc) &&
+    (!fStock || r.stock === fStock) &&
+    (!fInd || String(r.ind || '') === fInd) &&
+    (!fTf || String(r.tf || '') === fTf) &&
+    (!fStatus || (fStatus === 'filled' ? r.manual != null : r.manual == null)));
   let wNum = 0, wDen = 0, counted = 0;   // value-weighted average slippage %
   document.getElementById('execBody').innerHTML = rows.length
     ? rows.map(r => {
@@ -982,6 +1026,9 @@ function gatePick(i){
   if (u.role === 'admin') {
     gatePendingAdmin = u;
     document.getElementById('gatePin').hidden = false;
+    const savedPin = localStorage.getItem('sdtAdminPin') || '';
+    document.getElementById('gatePinInp').value = savedPin;
+    document.getElementById('rememberPin').checked = !!savedPin;
     document.getElementById('gatePinInp').focus();
     return;
   }
@@ -993,6 +1040,8 @@ function gateAdminGo(){
     .withSuccessHandler(ok => {
       if (!ok) { document.getElementById('gatePinErr').textContent = 'Incorrect PIN.'; return; }
       ADMIN_PIN_CACHE = pin;
+      if (document.getElementById('rememberPin').checked) localStorage.setItem('sdtAdminPin', pin);
+      else localStorage.removeItem('sdtAdminPin');
       enterAs(gatePendingAdmin);
     })
     .withFailureHandler(e => document.getElementById('gatePinErr').textContent =
@@ -1006,9 +1055,23 @@ function enterAs(u){
   const chip = document.getElementById('userChip');
   chip.hidden = false;
   chip.textContent = u.name + (u.role === 'admin' ? ' · admin' : '');
+  document.getElementById('logoutBtn').hidden = false;
   document.body.classList.toggle('op', u.role !== 'admin');
   renderUsersAdmin();
   render();
+}
+function logoutUser(){
+  CURRENT_USER = null;
+  gatePendingAdmin = null;
+  try { sessionStorage.removeItem('sdtUser'); } catch (e) {}
+  document.getElementById('userGate').style.display = 'flex';
+  document.getElementById('userChip').hidden = true;
+  document.getElementById('logoutBtn').hidden = true;
+  document.getElementById('gatePin').hidden = true;
+  document.getElementById('gatePinInp').value = '';
+  document.getElementById('gatePinErr').textContent = '';
+  document.body.classList.remove('op');
+  bootUsers();
 }
 
 /* ---------- admin: user routing ---------- */
@@ -1145,9 +1208,20 @@ function setPlView(v){
 }
 function plc(v){ return v==null?'':(v>0?'up':(v<0?'down':'flat')); }
 function plfmt(v){ return v==null?'—':(v>0?'+':'')+money(v); }
+function clearPnlFilters(){
+  ['plFilterAcc','plFilterStock'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderPnl();
+}
 function renderPnl(){
   const pnl = DATA.pnl || { rows: [], skipped: 0 };
-  let rows = pnl.rows;
+  const baseRows = pnl.rows || [];
+  const uniq = key => [...new Set(baseRows.map(r => String(r[key] || '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  syncAlertFilter('plFilterAcc', uniq('acc'), 'All accounts');
+  syncAlertFilter('plFilterStock', uniq('stock'), 'All stocks');
+  const fAcc = document.getElementById('plFilterAcc')?.value || '';
+  const fStock = document.getElementById('plFilterStock')?.value || '';
+  let rows = baseRows.filter(r => (!fAcc || r.acc === fAcc) && (!fStock || r.stock === fStock));
   const anySpot = rows.some(r => r.src === 'spot');
   document.getElementById('plNote').textContent =
     (anySpot ? 'LTP: spot fallback (login to Zerodha for futures rates)' : (rows.length ? 'LTP: current-month futures' : '')) +

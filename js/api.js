@@ -586,7 +586,7 @@ const Server = {
     await ensureReady();
     const rows = CACHE.trades.slice().sort((a, b) => a.time < b.time ? 1 : -1)
       .slice(0, 200).map(r => ({ row: r.id, time: r.time, acc: r.acc,
-        stock: r.stock, tf: r.tf, qty: Number(r.qty) || 0, alertPrice: r.alertPx,
+        stock: r.stock, ind: r.ind, tf: r.tf, qty: Number(r.qty) || 0, alertPrice: r.alertPx,
         fut: r.futAtSignal == null ? null : Number(r.futAtSignal),
         manual: r.tradePx == null ? null : Number(r.tradePx),
         loss: r.execPl == null ? null : Number(r.execPl) }));
@@ -685,11 +685,14 @@ const Server = {
     // Export exactly the current dashboard open positions, not today's trade log.
     const openLegs = computePositions().filter(l => Number(l.sumQty) !== 0);
     const avgMap = computeBookAvgByLeg();
+    const stocks = [...new Set(openLegs.map(l => String(l.stock)))];
+    let quotes = { fut: {} };
+    try { quotes = await fetchQuotes(stocks); } catch (e) {}
     const overrides = {};
     CACHE.legSizes.forEach(l => overrides[legKey(l.acc, l.stock, l.ind, l.tf)] = l.totalQty);
     const q = v => { v = String(v == null ? '' : v);
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const lines = ['Account,Stock,Indicator,Timeframe,Side,Net Qty,Avg Price,Total Qty'];
+    const lines = ['Account,Stock,Indicator,Timeframe,Side,Net Qty,Avg Price,Fut LTP,Total Qty'];
     openLegs.sort((a, b) =>
       String(a.acc).localeCompare(String(b.acc)) ||
       String(a.stock).localeCompare(String(b.stock)) ||
@@ -698,9 +701,11 @@ const Server = {
     ).forEach(p => {
       const k = legKey(p.acc, p.stock, p.ind, p.tf);
       const avg = avgMap[k] && avgMap[k].pos !== 0 ? Math.round(avgMap[k].avg * 100) / 100 : '';
+      const fut = quotes.fut && quotes.fut[p.stock] && quotes.fut[p.stock].price != null
+        ? Math.round(Number(quotes.fut[p.stock].price) * 100) / 100 : '';
       lines.push([q(p.acc), q(p.stock), q(p.ind), q(p.tf),
         p.sumQty > 0 ? 'BUY' : 'SELL', Math.abs(p.sumQty),
-        avg, overrides[k] != null ? overrides[k] : Math.max(p.maxAbs || 0, Math.abs(p.sumQty))].join(','));
+        avg, fut, overrides[k] != null ? overrides[k] : Math.max(p.maxAbs || 0, Math.abs(p.sumQty))].join(','));
     });
     const day = new Date().toISOString().slice(0, 10);
     return { filename: 'SDT_Positions_' + day + '.csv',
