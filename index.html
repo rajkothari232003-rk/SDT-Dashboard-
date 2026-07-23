@@ -654,8 +654,15 @@
       </div>
 
       <div id="dataAdminBox" hidden>
-        <h2>Delete data (admin)</h2>
+        <h2>Data cleanup (admin)</h2>
         <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+          <div class="hint">Use compact to keep the app free-plan friendly. It replaces detailed
+            old trade history with one snapshot trade per current open position, so Firestore reads
+            stay low. Users, master dropdowns, admin PIN and Kite settings stay saved.</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary" onclick="compactTradingData(this)">Compact to open positions</button>
+            <span class="saved" id="compactDataSaved" hidden></span>
+          </div>
           <div class="hint">Clears all trading records from the dashboard: trades, pending alerts,
             open positions, position size overrides, funds rows and alert creator history. Users,
             master dropdowns, admin PIN and Kite settings stay saved.</div>

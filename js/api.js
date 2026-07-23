@@ -265,6 +265,51 @@ const Server = {
     return { ok: true, counts };
   },
 
+  async compactTradingData(pin){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    const openLegs = computePositions().filter(l => Number(l.sumQty) !== 0);
+    const avgMap = computeBookAvgByLeg();
+    const now = new Date().toISOString();
+    const snapshots = [];
+    openLegs.forEach(l => {
+      const qty = Number(l.sumQty) || 0;
+      const key = legKey(l.acc, l.stock, l.ind, l.tf);
+      const avg = avgMap[key] && avgMap[key].pos !== 0 ? Number(avgMap[key].avg) : null;
+      snapshots.push({
+        time: now,
+        acc: l.acc,
+        stock: l.stock,
+        ind: l.ind,
+        tf: l.tf,
+        lot: l.lot === '' ? null : l.lot,
+        side: qty < 0 ? 'SELL' : 'BUY',
+        qty,
+        alertPx: avg,
+        pos: null,
+        srcId: 'compact',
+        executed: true,
+        futAtSignal: null,
+        tradePx: avg,
+        execPl: null
+      });
+    });
+    const deleted = await deleteCollection('trades');
+    await deleteCollection('alertHistory');
+    CACHE.trades = [];
+    CACHE.history = [];
+    let created = 0;
+    for (const doc of snapshots) {
+      const fp = await fingerprintOf({
+        acc: doc.acc, stock: doc.stock, ind: doc.ind, tf: doc.tf,
+        qty: doc.qty, side: doc.side, price: doc.tradePx, time: doc.time
+      });
+      await createDocIfAbsent('trades', fp, doc);
+      created++;
+    }
+    onDataChanged();
+    return { ok: true, deleted, created };
+  },
+
   async getDashboardData(){
     await ensureReady();
     const overrides = {};

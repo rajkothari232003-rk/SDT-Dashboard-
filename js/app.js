@@ -1105,6 +1105,35 @@ function clearTradingData(btn){
     })
     .clearTradingData(ADMIN_PIN_CACHE);
 }
+function compactTradingData(btn){
+  clearErr();
+  const ok = confirm('Compact old trade history into current open positions? This keeps current positions but removes detailed old trade rows to reduce Firebase reads.');
+  if (!ok) return;
+  const typed = prompt('Type COMPACT to confirm.');
+  if (typed !== 'COMPACT') return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Compacting...';
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false;
+      btn.textContent = old;
+      const out = document.getElementById('compactDataSaved');
+      if (out) {
+        out.textContent = 'Compacted: deleted ' + (res.deleted || 0) +
+          ' trade rows, kept ' + (res.created || 0) + ' open position snapshots.';
+        out.hidden = false;
+        setTimeout(() => out.hidden = true, 7000);
+      }
+      render();
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false;
+      btn.textContent = old;
+      showErr('Could not compact data: ' + (e && e.message ? e.message : e));
+    })
+    .compactTradingData(ADMIN_PIN_CACHE);
+}
 
 /* ---------- live P&L ---------- */
 let PLVIEW = 'acc';
