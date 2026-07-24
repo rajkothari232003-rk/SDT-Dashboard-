@@ -333,7 +333,7 @@
             onclick="shareElement('exposureWrap','SDT_Exposure.png',this)">Share</button>
         </div>
         <h2 style="margin-top:10px">Exposure summary</h2>
-        <div class="panel scroll desk-only">
+        <div class="panel scroll">
           <table style="min-width:620px">
             <thead><tr>
               <th>Account</th><th class="r">Exposure</th><th class="r">% Exposure</th>
@@ -343,7 +343,7 @@
           </table>
         </div>
         <h2 style="margin-top:14px">Funds summary</h2>
-        <div class="panel scroll desk-only">
+        <div class="panel scroll">
           <table style="min-width:620px">
             <thead><tr>
               <th>Account</th><th class="r">Total Fund</th><th class="r">Used Fund</th>
@@ -352,7 +352,7 @@
             <tbody id="fundBody"><tr><td colspan="4" class="empty">Waiting for data…</td></tr></tbody>
           </table>
         </div>
-        <div class="mcards mob-only" id="expCards"></div>
+        <div id="expCards" hidden></div>
       </div>
 
             <h2 style="margin-top:22px">Position grid — live long / short by timeframe</h2>
@@ -685,6 +685,12 @@
       <div id="dataAdminBox" hidden>
         <h2>Data cleanup (admin)</h2>
         <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+          <div class="hint">Save a separate end-of-day P&amp;L snapshot for record keeping.
+            This does not change trades, positions or the next day's P&amp;L calculation.</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary" onclick="saveDaySnapshot(this)">Save day P&amp;L snapshot</button>
+            <span class="saved" id="daySnapshotSaved" hidden></span>
+          </div>
           <div class="hint">Use compact to keep the app free-plan friendly. It replaces detailed
             old trade history with one snapshot trade per current open position, so Firestore reads
             stay low. Users, master dropdowns, admin PIN and Kite settings stay saved.</div>

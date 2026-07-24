@@ -310,6 +310,44 @@ const Server = {
     return { ok: true, deleted, created };
   },
 
+  async saveDaySnapshot(pin){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    await ensureReady();
+    const data = await Server.getDashboardData();
+    const date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const accountMap = {};
+    (data.pnl.rows || []).forEach(r => {
+      if (!accountMap[r.acc]) {
+        accountMap[r.acc] = { acc: r.acc, realized: 0, unrealized: 0, dayPnl: 0, total: 0,
+          incomplete: false, dayIncomplete: false };
+      }
+      const a = accountMap[r.acc];
+      a.realized += Number(r.realized) || 0;
+      if (r.unrealized == null) a.incomplete = true;
+      else a.unrealized += Number(r.unrealized) || 0;
+      if (r.dayPnl == null) a.dayIncomplete = true;
+      else a.dayPnl += Number(r.dayPnl) || 0;
+      if (r.total == null) a.incomplete = true;
+      else a.total += Number(r.total) || 0;
+    });
+    const accountRows = Object.values(accountMap).map(a => ({
+      acc: a.acc,
+      realized: a.realized,
+      unrealized: a.incomplete ? null : a.unrealized,
+      dayPnl: a.dayIncomplete ? null : a.dayPnl,
+      total: a.incomplete ? null : a.total
+    }));
+    const doc = {
+      date,
+      savedAt: new Date().toISOString(),
+      accountRows,
+      stockRows: data.pnl.rows || [],
+      accounts: data.accounts || []
+    };
+    await setDoc('daySnapshots', date, doc, false);
+    return { ok: true, date, accounts: accountRows.length, rows: doc.stockRows.length };
+  },
+
   async getDashboardData(){
     await ensureReady();
     const overrides = {};
@@ -517,6 +555,90 @@ const Server = {
     return master;
   },
 
+  async removeAccount(pin, acc){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    await ensureReady();
+    const target = String(acc || '').trim();
+    if (!target) throw new Error('Account is required.');
+    const sameAcc = v => String(v || '').trim().toUpperCase() === target.toUpperCase();
+    const master = CACHE.master || CONFIG.DEFAULT_MASTER;
+    const nextMaster = Object.assign({}, master, {
+      accounts: (master.accounts || []).filter(a => !sameAcc(a))
+    });
+    await setDoc('config', 'master', nextMaster, false);
+    CACHE.master = nextMaster;
+
+    let trades = 0, legSizes = 0, funds = 0, history = 0, users = 0, snapshots = 0;
+    for (const t of CACHE.trades.filter(t => sameAcc(t.acc))) {
+      await deleteDoc('trades', t.id);
+      trades++;
+    }
+    CACHE.trades = CACHE.trades.filter(t => !sameAcc(t.acc));
+
+    for (const l of CACHE.legSizes.filter(l => sameAcc(l.acc))) {
+      await deleteDoc('legSizes', l.id);
+      legSizes++;
+    }
+    CACHE.legSizes = CACHE.legSizes.filter(l => !sameAcc(l.acc));
+
+    if (CACHE.funds[target] || Object.keys(CACHE.funds).some(k => sameAcc(k))) {
+      for (const k of Object.keys(CACHE.funds).filter(k => sameAcc(k))) {
+        await deleteDoc('funds', k);
+        delete CACHE.funds[k];
+        funds++;
+      }
+    }
+
+    for (const u of CACHE.users) {
+      if (u.accounts === '*') continue;
+      const list = String(u.accounts || '').split(',').map(s => s.trim()).filter(Boolean)
+        .filter(a => !sameAcc(a));
+      const next = list.join(',');
+      if (next !== u.accounts) {
+        await setDoc('users', u.name, { accounts: next }, true);
+        u.accounts = next;
+        users++;
+      }
+    }
+
+    if (!DEMO_MODE) {
+      const histSnap = await fs.getDocs(fs.collection(db, 'alertHistory'));
+      for (const d of histSnap.docs) {
+        const row = d.data();
+        const parts = String(row.acc || '').split('+').map(s => s.trim()).filter(Boolean);
+        if (!parts.some(sameAcc)) continue;
+        if (parts.length <= 1) {
+          await deleteDoc('alertHistory', d.id);
+          history++;
+        } else {
+          await setDoc('alertHistory', d.id, { acc: parts.filter(a => !sameAcc(a)).join('+') }, true);
+          history++;
+        }
+      }
+
+      const snapSnap = await fs.getDocs(fs.collection(db, 'daySnapshots'));
+      for (const d of snapSnap.docs) {
+        const row = d.data();
+        const filtered = {
+          accounts: (row.accounts || []).filter(x => !sameAcc(x.acc)),
+          accountRows: (row.accountRows || []).filter(x => !sameAcc(x.acc)),
+          stockRows: (row.stockRows || []).filter(x => !sameAcc(x.acc))
+        };
+        if (filtered.accounts.length !== (row.accounts || []).length ||
+            filtered.accountRows.length !== (row.accountRows || []).length ||
+            filtered.stockRows.length !== (row.stockRows || []).length) {
+          await setDoc('daySnapshots', d.id, filtered, true);
+          snapshots++;
+        }
+      }
+    } else {
+      CACHE.history = CACHE.history.filter(h => !String(h.acc || '').split('+').some(sameAcc));
+    }
+
+    onDataChanged();
+    return { ok: true, master: nextMaster, deleted: { trades, legSizes, funds, history, users, snapshots } };
+  },
+
   async createAlert(p){
     const clean = s => String(s || '').replace(/\|/g, '').trim();
     const multi = Array.isArray(p.accountsMulti)
@@ -595,16 +717,22 @@ const Server = {
     return { rows, kite };
   },
 
-  async runExecutionLoss(){
-    const need = CACHE.trades.filter(t =>
-      (t.futAtSignal == null || t.futAtSignal === '') && t.stock && t.time).slice(0, 40)
-      .map(t => ({ id: t.id, stock: t.stock, time: t.time }));
-    if (!need.length) return { updated: 0, remaining: 0 };
+  async runExecutionLoss(rowsArg){
+    await ensureReady();
+    const rowIds = new Set((Array.isArray(rowsArg) ? rowsArg : [])
+      .map(r => r && (r.id || r.row)).filter(Boolean));
+    const scope = rowIds.size
+      ? CACHE.trades.filter(t => rowIds.has(t.id))
+      : CACHE.trades.filter(t => isTodayISO(t.time));
+    const pending = scope.filter(t =>
+      (t.futAtSignal == null || t.futAtSignal === '') && t.stock && t.time);
+    const need = pending.slice(0, 40).map(t => ({ id: t.id, stock: t.stock, time: t.time }));
+    if (!need.length) return { fetched: 0, updated: 0, failed: 0, remaining: 0 };
     const r = await fetch('/api/kite', { method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'candles', rows: need }) });
-    if (!r.ok) throw new Error('Kite proxy HTTP ' + r.status + ' — activate the API in Settings.');
-    const res = await r.json();                     // { id: futPrice }
+    if (!r.ok) throw new Error('Kite proxy HTTP ' + r.status + ' - activate the API in Settings.');
+    const res = await r.json();
     let updated = 0;
     for (const id of Object.keys(res)) {
       const t = CACHE.trades.find(x => x.id === id);
@@ -614,9 +742,17 @@ const Server = {
       await setDoc('trades', id, upd, true);
       Object.assign(t, upd); updated++;
     }
-    return { updated, remaining: Math.max(0,
-      CACHE.trades.filter(t => t.futAtSignal == null).length - updated) };
+    const updatedIds = new Set(Object.keys(res).filter(id => res[id] != null));
+    const failedRows = need.filter(x => !updatedIds.has(x.id));
+    return {
+      fetched: updated,
+      updated,
+      failed: failedRows.length,
+      remaining: Math.max(0, pending.length - updated),
+      errors: failedRows.slice(0, 6).map(x => x.stock + ' ' + new Date(x.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ': no futures candle')
+    };
   },
+
 
   /* ---------- kite settings ---------- */
   async getKiteStatus(){

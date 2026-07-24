@@ -65,19 +65,33 @@ exports.handler = async (event) => {
     }
     if (!trades.length) return out(200, 'unparseable');
 
+    const db = getDb();
+    let allowedAccounts = null;
+    try {
+      const masterDoc = await db.collection('config').doc('master').get();
+      const accounts = masterDoc.exists ? (masterDoc.data().accounts || []) : [];
+      if (accounts.length) {
+        allowedAccounts = new Set(accounts.map(a => String(a || '').trim().toUpperCase()).filter(Boolean));
+      }
+    } catch (e) { /* fail-open if master cannot be read */ }
+    const filteredTrades = allowedAccounts
+      ? trades.filter(t => allowedAccounts.has(String(t.acc || '').trim().toUpperCase()))
+      : trades;
+    const ignored = trades.length - filteredTrades.length;
+    if (!filteredTrades.length) return out(200, 'ignored account' + (ignored ? ':' + ignored : ''));
+
     // live Fut @ Signal (best-effort; never blocks the write)
     let futFor = {};
     try {
       const nowMs = Date.now();
-      const fresh = trades.every(t => !t.time || (nowMs - new Date(t.time).getTime()) < 90000);
+      const fresh = filteredTrades.every(t => !t.time || (nowMs - new Date(t.time).getTime()) < 90000);
       if (fresh) {
-        futFor = await kiteQuoteFut([...new Set(trades.map(t => t.stock))], true /*cacheOnly*/);
+        futFor = await kiteQuoteFut([...new Set(filteredTrades.map(t => t.stock))], true /*cacheOnly*/);
       }
     } catch (e) { /* pending; Run backfills */ }
 
-    const db = getDb();
     let logged = 0, dup = 0;
-    for (const t of trades) {
+    for (const t of filteredTrades) {
       const fp = fingerprintOf(t);
       const fut = futFor[t.stock] ? futFor[t.stock].price : null;
       const doc = {
@@ -97,7 +111,7 @@ exports.handler = async (event) => {
         else throw e;
       }
     }
-    return out(200, 'ok:' + logged + (dup ? ' dup:' + dup : ''));
+    return out(200, 'ok:' + logged + (dup ? ' dup:' + dup : '') + (ignored ? ' ignored:' + ignored : ''));
   } catch (err) {
     return out(500, 'error:' + (err && err.message ? err.message : String(err)));
   }
