@@ -685,6 +685,15 @@
       <div id="dataAdminBox" hidden>
         <h2>Data cleanup (admin)</h2>
         <div class="formgrid" style="grid-template-columns:1fr;gap:10px">
+          <div class="hint">Copy all current open positions from one account into a new or existing
+            account. Existing open legs in the target account are skipped, so it will not double-copy.</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="copyFromAcc" style="min-width:170px"></select>
+            <input type="text" id="copyToAcc" placeholder="New account name, e.g. HS"
+              style="min-width:210px">
+            <button class="btn primary" onclick="copyOpenPositions(this)">Copy open positions</button>
+            <span class="saved" id="copyPosSaved" hidden></span>
+          </div>
           <div class="hint">Save a separate end-of-day P&amp;L snapshot for record keeping.
             This does not change trades, positions or the next day's P&amp;L calculation.</div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">

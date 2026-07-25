@@ -28,16 +28,16 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmt(v, dec){
   const n = Number(v);
-  if (v == null || v === '' || isNaN(n)) return 'â€”';
+  if (v == null || v === '' || isNaN(n)) return '-';
   return n.toLocaleString('en-IN', {minimumFractionDigits: dec ?? 0, maximumFractionDigits: dec ?? 2});
 }
 function money(v){
   const n = Number(v);
-  if (v == null || isNaN(n)) return 'â€”';
-  const a = Math.abs(n), sign = n < 0 ? 'âˆ’' : '';
-  if (a >= 1e7) return sign + 'â‚¹' + (a/1e7).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' Cr';
-  if (a >= 1e5) return sign + 'â‚¹' + (a/1e5).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
-  return sign + 'â‚¹' + a.toLocaleString('en-IN',{maximumFractionDigits:0});
+  if (v == null || isNaN(n)) return '-';
+  const a = Math.abs(n), sign = n < 0 ? '-' : '';
+  if (a >= 1e7) return sign + 'Rs ' + (a/1e7).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' Cr';
+  if (a >= 1e5) return sign + 'Rs ' + (a/1e5).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
+  return sign + 'Rs ' + a.toLocaleString('en-IN',{maximumFractionDigits:0});
 }
 function tfmt(iso){
   if (!iso) return '';
@@ -58,7 +58,7 @@ function togglePanel(open){
 }
 function copyText(text, btn){
   const done = () => {
-    const old = btn.textContent; btn.textContent = 'Copied âœ“';
+    const old = btn.textContent; btn.textContent = 'Copied OK';
     setTimeout(() => btn.textContent = old, 1400);
   };
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -95,7 +95,7 @@ function showTab(which){
 /* ---------- dashboard ---------- */
 function load(manual){
   const btn = document.getElementById('refreshBtn');
-  if (manual){ btn.disabled = true; btn.textContent = 'Refreshingâ€¦'; }
+  if (manual){ btn.disabled = true; btn.textContent = 'Refreshing...'; }
   google.script.run
     .withSuccessHandler(d => {
       DATA = d;
@@ -106,7 +106,7 @@ function load(manual){
       document.getElementById('updated').textContent =
         'Last refresh ' + ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
       document.getElementById('expStamp').textContent =
-        'SDT Dashboard Â· ' + ts.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
+        'SDT Dashboard  -  ' + ts.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
         ' ' + ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
       btn.disabled = false; btn.textContent = 'Refresh';
     })
@@ -132,11 +132,11 @@ function buildFilters(){
 function render(){
   document.getElementById('indices').innerHTML = DATA.indices.map(ix => {
     const c = ix.chg == null ? 'flat' : cls(ix.chg);
-    const arrow = ix.chg == null ? '' : (ix.chg > 0 ? 'â–² ' : (ix.chg < 0 ? 'â–¼ ' : ''));
+    const arrow = ix.chg == null ? '' : (ix.chg > 0 ? '+ ' : (ix.chg < 0 ? '- ' : ''));
     const ch = ix.chg == null ? '' :
       `<span class="ch num ${c}">${arrow}<span class="abs">${fmt(Math.abs(ix.chg),2)} </span><span class="pct">(${fmt(Math.abs(ix.chgPct),2)}%)</span></span>`;
     return `<div class="idx"><div class="nm">${esc(ix.name)}</div>
-      <div><span class="px num">${ix.price==null?'â€”':fmt(ix.price,2)}</span>${ch}</div></div>`;
+      <div><span class="px num">${ix.price==null?'-':fmt(ix.price,2)}</span>${ch}</div></div>`;
   }).join('');
 
   const fa = document.getElementById('fAcc').value;
@@ -156,22 +156,22 @@ function render(){
   const fundCell = (a, field) => {
     const val = field === 'total' ? a.totalFund : a.usedFund;
     const ov = field === 'used' && a.usedManual;
-    const title = field === 'total' ? 'Total fund â€” click to edit'
-      : (a.usedManual ? 'Used fund (manual) â€” click to edit' : 'Used fund (default 30% of exposure) â€” click to edit');
+    const title = field === 'total' ? 'Total fund - click to edit'
+      : (a.usedManual ? 'Used fund (manual) - click to edit' : 'Used fund (default 30% of exposure) - click to edit');
     return `<span class="editmoney num ${ov?'ov':''}" title="${title}"
-      onclick="editFund(this,'${esc(a.acc)}','${field}')">${val==null?'setâ€¦':money(val)}</span>`;
+      onclick="editFund(this,'${esc(a.acc)}','${field}')">${val==null?'set...':money(val)}</span>`;
   };
   document.getElementById('expBody').innerHTML = accs.length
     ? accs.map(a => `
       <tr>
-        <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">âš ${a.missing}</span>' : ''}</td>
+        <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!${a.missing}</span>' : ''}</td>
         <td class="r">${fundCell(a,'total')}</td>
         <td class="r">${fundCell(a,'used')}</td>
-        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'â€”':money(a.netAvail)}</b></td>
+        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'-':money(a.netAvail)}</b></td>
         <td class="r num ${cls(a.net)}"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
         <td class="r num"><b>${money(a.gross)}</b></td>
         <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
-        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'â€”':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
+        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
       </tr>`).join('')
     : '<tr><td colspan="8" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
 
@@ -181,7 +181,7 @@ function render(){
         <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!</span>' : ''}</td>
         <td class="r num ${cls(a.net)}"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
         <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
-        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'â€”':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
+        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
       </tr>`).join('')
     : '<tr><td colspan="4" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
 
@@ -191,7 +191,7 @@ function render(){
         <td><b>${esc(a.acc)}</b></td>
         <td class="r">${fundCell(a,'total')}</td>
         <td class="r">${fundCell(a,'used')}</td>
-        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'â€”':money(a.netAvail)}</b></td>
+        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'-':money(a.netAvail)}</b></td>
       </tr>`).join('')
     : '<tr><td colspan="4" class="empty">No funds yet.</td></tr>';
 
@@ -199,14 +199,14 @@ function render(){
     ? accs.map(a => `
       <div class="mcard">
         <div class="mc1"><span class="grow"><b>${esc(a.acc)}</b></span>
-          <span class="num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>Day ${accDay[a.acc]==null?'â€”':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></span></div>
+          <span class="num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>Day ${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></span></div>
         <div class="mc3"><span class="num"><span class="lbl">Total Fund</span> ${fundCell(a,'total')}</span>
           <span class="num"><span class="lbl">Used</span> ${fundCell(a,'used')}</span></div>
         <div class="mc3"><span class="num"><span class="lbl">Available</span>
             <b class="${a.netAvail==null?'':cls(a.netAvail)}">${a.netAvail==null?'set Total Fund':money(a.netAvail)}</b></span>
           <span class="num"><span class="lbl">Net</span>
             <b class="${cls(a.net)}">${a.net>0?'+':''}${money(a.net)}</b></span></div>
-        <div class="mc2 num">Total Exposure <b>${money(a.gross)}</b> Â· Net/Total ${fmt(a.pct,1)}%</div>
+        <div class="mc2 num">Total Exposure <b>${money(a.gross)}</b>  -  Net/Total ${fmt(a.pct,1)}%</div>
       </div>`).join('')
     : '<div class="mcard"><div class="mc2">No positions yet.</div></div>';
 
@@ -217,7 +217,7 @@ function render(){
   let legs = DATA.legs.filter(l => (!fa || l.acc===fa) && (!fs || l.stock===fs) &&
     (!fside || (fside==='buy' ? l.qty > 0 : l.qty < 0)));
 
-  // Condensed view: totals across all indicators & timeframes per Account Ã— Stock
+  // Condensed view: totals across all indicators & timeframes per Account x Stock
   if (VIEW === 'cond') {
     const g = {};
     legs.forEach(l => {
@@ -251,12 +251,12 @@ function render(){
     const closed = COLLAPSED.has(a);
     html += `
       <tr class="acc-row" onclick="toggleAcc('${esc(a)}')">
-        <td colspan="5"><span class="car">${closed?'â–¸':'â–¾'}</span>${esc(a)}
-          <span class="dim" style="font-weight:500">Â· ${rows.length} row${rows.length===1?'':'s'}</span></td>
+        <td colspan="5"><span class="car">${closed?'>':'v'}</span>${esc(a)}
+          <span class="dim" style="font-weight:500"> -  ${rows.length} row${rows.length===1?'':'s'}</span></td>
         <td class="r num dim">${fmt(rows.reduce((s,l)=>s+(l.totalQty||0),0),0)}</td>
         <td class="r num ${cls(net)}">${net>0?'+':''}${fmt(net,0)}</td>
         <td></td>
-        <td class="r num ${cls(exp ?? 0)}"><b>${exp==null?'â€”':money(exp)}</b></td>
+        <td class="r num ${cls(exp ?? 0)}"><b>${exp==null?'-':money(exp)}</b></td>
       </tr>`;
     if (!closed) rows.forEach(l => {
       sr++;
@@ -269,13 +269,13 @@ function render(){
         <td class="r dim num">${esc(l.tf)}</td>
         <td class="r">${VIEW==='cond' || l._i==null
           ? '<span class="dim num">'+fmt(l.totalQty,0)+'</span>'
-          : `<input type="number" min="0" step="1" class="num" title="One-side size â€” edit to override"
+          : `<input type="number" min="0" step="1" class="num" title="One-side size - edit to override"
                style="width:84px;text-align:right;padding:4px 7px;${l.manualSize?'border-color:var(--blue);':''}"
                value="${l.totalQty??''}" onclick="event.stopPropagation()"
                onchange="saveTQ(${l._i}, this)">`}</td>
         <td class="r"><span class="pill num ${cls(l.qty)}"><span class="${cls(l.qty)}">${l.qty>0?'+':''}${fmt(l.qty,0)}</span></span></td>
-        <td class="r dim num">${l.rate==null?'â€”':fmt(l.rate,2)}</td>
-        <td class="r num ${cls(l.exposure ?? 0)}"><b>${l.exposure==null?'â€”':money(l.exposure)}</b></td>
+        <td class="r dim num">${l.rate==null?'-':fmt(l.rate,2)}</td>
+        <td class="r num ${cls(l.exposure ?? 0)}"><b>${l.exposure==null?'-':money(l.exposure)}</b></td>
       </tr>`;
     });
   });
@@ -290,8 +290,8 @@ function render(){
     const closed = COLLAPSED.has(a);
     mob += `
       <div class="mcard" onclick="toggleAcc('${esc(a)}')" style="background:#eef2f8;cursor:pointer">
-        <div class="mc1"><span class="car">${closed?'â–¸':'â–¾'}</span>
-          <span class="grow"><b>${esc(a)}</b> <span class="dim">Â· ${rows.length} row${rows.length===1?'':'s'}</span></span>
+        <div class="mc1"><span class="car">${closed?'>':'v'}</span>
+          <span class="grow"><b>${esc(a)}</b> <span class="dim"> -  ${rows.length} row${rows.length===1?'':'s'}</span></span>
           <span class="num ${cls(net)}"><b>${net>0?'+':''}${fmt(net,0)}</b></span></div>
       </div>`;
     if (!closed) rows.forEach(l => {
@@ -299,14 +299,14 @@ function render(){
       <div class="mcard">
         <div class="mc1"><span class="grow">${esc(l.stock)}</span>
           <span class="pill num ${cls(l.qty)}"><span class="${cls(l.qty)}">${l.qty>0?'+':''}${fmt(l.qty,0)}</span></span></div>
-        <div class="mc2">${esc(l.ind)} Â· TF ${esc(l.tf)} Â· <span class="num">Total Qty
+        <div class="mc2">${esc(l.ind)}  -  TF ${esc(l.tf)}  -  <span class="num">Total Qty
           ${VIEW==='cond' || l._i==null ? fmt(l.totalQty,0)
             : `<input type="number" min="0" step="1" class="num"
                  style="width:76px;text-align:right;padding:3px 6px;${l.manualSize?'border-color:var(--blue);':''}"
                  value="${l.totalQty??''}" onclick="event.stopPropagation()"
                  onchange="saveTQ(${l._i}, this)">`}</span></div>
-        <div class="mc3"><span class="num"><span class="lbl">LTP</span> <b>${l.rate==null?'â€”':fmt(l.rate,2)}</b></span>
-          <span class="num"><span class="lbl">Exposure</span> <b class="${cls(l.exposure ?? 0)}">${l.exposure==null?'â€”':money(l.exposure)}</b></span></div>
+        <div class="mc3"><span class="num"><span class="lbl">LTP</span> <b>${l.rate==null?'-':fmt(l.rate,2)}</b></span>
+          <span class="num"><span class="lbl">Exposure</span> <b class="${cls(l.exposure ?? 0)}">${l.exposure==null?'-':money(l.exposure)}</b></span></div>
       </div>`;
     });
   });
@@ -323,17 +323,17 @@ function render(){
     document.getElementById('opPending').innerHTML = pendingNotes.length
       ? pendingNotes.map(n => `
         <div class="mcard">
-          <div class="mc1"><span class="grow"><b>${esc(n.acc)}</b> Â· ${esc(n.stock)}</span>
+          <div class="mc1"><span class="grow"><b>${esc(n.acc)}</b>  -  ${esc(n.stock)}</span>
             <span style="font-size:11px;color:var(--soft)">${tfmt(n.time)}</span></div>
           <div class="mc2 num"><b class="${n.qty<0?'down':'up'}">${n.qty<0?'SELL':'BUY'}</b>
             ${fmt(Math.abs(n.qty),0)}${n.price!=='' && n.price!=null ? ' @ ' + fmt(n.price,2) : ''}
-            Â· ${esc(n.ind)}${n.ind && n.tf ? ' Â· ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
+             -  ${esc(n.ind)}${n.ind && n.tf ? '  -  ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
           <div class="nprice num"><span class="lbl">Trade Px</span>
             <input type="number" step="0.05" min="0" placeholder="fill price"
               value="${n.tradePrice==null?'':n.tradePrice}"
               onchange="savePrice('${n.row}', this)" aria-label="Actual trade price"></div>
         </div>`).join('')
-      : '<div class="mcard"><div class="mc2">No pending alerts for your accounts â€” all caught up âœ“</div></div>';
+      : '<div class="mcard"><div class="mc2">No pending alerts for your accounts - all caught up OK</div></div>';
   }
   const pending = pendingNotes.length;
   const pc = document.getElementById('pendCount');
@@ -349,20 +349,20 @@ function render(){
     ? pendingNotes.map(n => `
       <div class="nitem" id="n${n.row}">
         <div class="nbody">
-          <div class="nl1"><span>${esc(n.acc)} Â· ${esc(n.stock)}</span>
+          <div class="nl1"><span>${esc(n.acc)}  -  ${esc(n.stock)}</span>
             <span class="t">${tfmt(n.time)}</span></div>
           <div class="nl2 num">
             <span class="${n.qty<0?'down':'up'}"><b>${n.qty<0?'SELL':'BUY'}</b></span>
             ${fmt(Math.abs(n.qty),0)}${n.price!=='' && n.price!=null ? ' @ ' + fmt(n.price,2) : ''}
           </div>
-          <div class="nl3">${esc(n.ind)}${n.ind && n.tf ? ' Â· ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
+          <div class="nl3">${esc(n.ind)}${n.ind && n.tf ? '  -  ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
           <div class="nprice num"><span class="lbl">Trade Px</span>
             <input type="number" step="0.05" min="0" placeholder="fill price"
               value="${n.tradePrice==null?'':n.tradePrice}"
               onchange="savePrice('${n.row}', this)" aria-label="Actual trade price"></div>
         </div>
       </div>`).join('')
-    : '<div class="empty">No pending alerts â€” enter a trade price to clear an alert. History is on the Alerts tab.</div>';
+    : '<div class="empty">No pending alerts - enter a trade price to clear an alert. History is on the Alerts tab.</div>';
 
   if (!document.getElementById('viewAlerts').hidden) renderAlerts();
 }
@@ -413,8 +413,8 @@ function renderAlerts(){
         <td class="r dim num">${esc(n.tf)}</td>
         <td class="${n.qty<0?'down':'up'}"><b>${n.qty<0?'SELL':'BUY'}</b></td>
         <td class="r num">${fmt(Math.abs(n.qty),0)}</td>
-        <td class="r dim num">${n.price!=='' && n.price!=null ? fmt(n.price,2) : 'â€”'}</td>
-        <td class="r"><input type="number" step="0.05" min="0" class="num" placeholder="â€”"
+        <td class="r dim num">${n.price!=='' && n.price!=null ? fmt(n.price,2) : '-'}</td>
+        <td class="r"><input type="number" step="0.05" min="0" class="num" placeholder="-"
           style="width:92px;text-align:right;padding:5px 8px"
           value="${n.tradePrice==null?'':n.tradePrice}"
           onchange="savePrice('${n.row}', this)" aria-label="Actual trade price"></td>
@@ -429,17 +429,17 @@ function renderAlerts(){
     ? notes.map(n => `
       <div class="mcard" style="${n.executed ? 'opacity:.6' : ''}">
         <div class="mc1">
-          <span class="grow"><b>${esc(n.acc)}</b> Â· ${esc(n.stock)}</span>
+          <span class="grow"><b>${esc(n.acc)}</b>  -  ${esc(n.stock)}</span>
           <span style="font-size:11px;color:var(--soft);font-weight:500">${tfmt(n.time)}</span></div>
         <div class="mc2 num"><b class="${n.qty<0?'down':'up'}">${n.qty<0?'SELL':'BUY'}</b>
           ${fmt(Math.abs(n.qty),0)}${n.price!=='' && n.price!=null ? ' @ ' + fmt(n.price,2) : ''}
-          Â· ${esc(n.ind)}${n.ind && n.tf ? ' Â· ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
+           -  ${esc(n.ind)}${n.ind && n.tf ? '  -  ' : ''}${n.tf ? 'TF ' + esc(n.tf) : ''}</div>
         <div class="mc3"><span class="num"><span class="lbl">Trade Px</span>
           <input type="number" step="0.05" min="0" class="num" placeholder="fill price"
             style="width:96px;text-align:right;padding:5px 8px"
             value="${n.tradePrice==null?'':n.tradePrice}"
             onchange="savePrice('${n.row}', this)" aria-label="Actual trade price"></span>
-          <span>${n.executed?'<b class="up">âœ“ Executed</b>':'<b class="down">Pending</b>'}</span></div>
+          <span>${n.executed?'<b class="up">OK Executed</b>':'<b class="down">Pending</b>'}</span></div>
       </div>`).join('')
     : '<div class="mcard"><div class="mc2">No alerts today.</div></div>';
 }
@@ -523,7 +523,7 @@ function deleteTradeRow(row, btn){
 }
 
 /**
- * One entry point for the actual trade price â€” used by the Notifications
+ * One entry point for the actual trade price - used by the Notifications
  * panel, the Alerts tab and the Execution Loss tab. Entering a price marks
  * the alert executed (it leaves the pending panel); clearing returns it.
  */
@@ -602,7 +602,7 @@ function multiChanged(){
   box.hidden = !on;
   if (on) {
     const lot = Number(document.getElementById('cLot').value) || 0;
-    box.innerHTML = '<span class="hint" style="width:100%">Qty per account (one SDT line each â€” all logged from a single email):</span>' +
+    box.innerHTML = '<span class="hint" style="width:100%">Qty per account (one SDT line each - all logged from a single email):</span>' +
       CREATOR.master.accounts.map((a,i) => `
         <span class="num" style="display:inline-flex;align-items:center;gap:6px">
           <b style="font-size:12.5px">${esc(a)}</b>
@@ -615,7 +615,7 @@ function multiChanged(){
 function generate(){
   clearErr();
   const btn = document.getElementById('genBtn');
-  btn.disabled = true; btn.textContent = 'Generatingâ€¦';
+  btn.disabled = true; btn.textContent = 'Generating...';
   const multiOn = document.getElementById('cMulti').checked;
   const accountsMulti = multiOn
     ? [...document.querySelectorAll('#multiQtys .mq')]
@@ -685,16 +685,16 @@ function renderHistory(){
         <td class="dim" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</td>
         <td><button class="btn sm" onclick="copyText(CREATOR.history[${i}].message, this)">Copy</button></td>
       </tr>`).join('')
-    : '<tr><td colspan="9" class="empty">Nothing generated yet â€” create your first alert above.</td></tr>';
+    : '<tr><td colspan="9" class="empty">Nothing generated yet - create your first alert above.</td></tr>';
 
   document.getElementById('histCards').innerHTML = h.length
     ? h.map((r, i) => `
       <div class="mcard">
         <div class="mc1"><span class="grow">${esc(r.name)}</span>
           <button class="btn sm" onclick="copyText(CREATOR.history[${i}].message, this)">Copy</button></div>
-        <div class="mc2">${tfmt(r.time)} Â· <b>${esc(r.acc)}</b> Â· ${esc(r.stock)} Â· ${esc(r.ind)} Â· TF ${esc(r.tf)} Â· ${esc(r.mode)} Â· Qty ${esc(r.qty)}</div>
+        <div class="mc2">${tfmt(r.time)}  -  <b>${esc(r.acc)}</b>  -  ${esc(r.stock)}  -  ${esc(r.ind)}  -  TF ${esc(r.tf)}  -  ${esc(r.mode)}  -  Qty ${esc(r.qty)}</div>
       </div>`).join('')
-    : '<div class="mcard"><div class="mc2">Nothing generated yet â€” create your first alert above.</div></div>';
+    : '<div class="mcard"><div class="mc2">Nothing generated yet - create your first alert above.</div></div>';
 }
 
 /* ---------- master editor ---------- */
@@ -706,10 +706,10 @@ function renderMaster(){
       <div class="mlist">
         ${m[key].map((v, i) => `
           <div class="mitem"><span>${esc(v)}</span>
-            <button class="x" onclick="mRemove('${key}',${i})" aria-label="Remove">âœ•</button></div>`).join('')}
+            <button class="x" onclick="mRemove('${key}',${i})" aria-label="Remove">x</button></div>`).join('')}
       </div>
       <div class="madd">
-        <input type="text" id="madd_${key}" placeholder="Addâ€¦">
+        <input type="text" id="madd_${key}" placeholder="Add...">
         <button class="btn sm" onclick="mAdd('${key}')">Add</button>
       </div>
     </div>`;
@@ -719,11 +719,11 @@ function renderMaster(){
       <h3>Stocks &amp; lot sizes</h3>
       <div class="mlist">
         ${m.stocks.map((s, i) => `
-          <div class="mitem"><span>${esc(s.stock)} <span style="color:var(--soft)">Â· lot ${esc(s.lot)}</span></span>
-            <button class="x" onclick="mRemove('stocks',${i})" aria-label="Remove">âœ•</button></div>`).join('')}
+          <div class="mitem"><span>${esc(s.stock)} <span style="color:var(--soft)"> -  lot ${esc(s.lot)}</span></span>
+            <button class="x" onclick="mRemove('stocks',${i})" aria-label="Remove">x</button></div>`).join('')}
       </div>
       <div class="madd">
-        <input type="text" id="madd_stock" placeholder="Stockâ€¦" style="flex:1.4">
+        <input type="text" id="madd_stock" placeholder="Stock..." style="flex:1.4">
         <input type="number" id="madd_lot" placeholder="Lot" style="width:70px">
         <button class="btn sm" onclick="mAddStock()">Add</button>
       </div>
@@ -780,7 +780,7 @@ function removeAccountCompletely(i){
       load(false);
       const tag = document.getElementById('msaved');
       tag.textContent = 'Removed ' + acc + ' and deleted related data';
-      tag.hidden = false; setTimeout(() => { tag.hidden = true; tag.textContent = 'Saved âœ“'; }, 4000);
+      tag.hidden = false; setTimeout(() => { tag.hidden = true; tag.textContent = 'Saved OK'; }, 4000);
     })
     .withFailureHandler(e => showErr('Could not remove account: ' + (e && e.message ? e.message : e)))
     .removeAccount(ADMIN_PIN_CACHE, acc);
@@ -820,11 +820,11 @@ function renderExec(){
   const k = EXEC.kite || {};
   const st = document.getElementById('execKite');
   if (k.connected) {
-    st.innerHTML = '<b style="color:var(--up)">â— Zerodha connected</b> (today)';
+    st.innerHTML = '<b style="color:var(--up)">* Zerodha connected</b> (today)';
   } else if (k.configured) {
-    st.innerHTML = '<b style="color:var(--down)">â— Not active today</b> â€” activate in Settings before Run';
+    st.innerHTML = '<b style="color:var(--down)">* Not active today</b> - activate in Settings before Run';
   } else {
-    st.innerHTML = '<b style="color:var(--down)">â— Not configured</b> â€” add API keys in Settings';
+    st.innerHTML = '<b style="color:var(--down)">* Not configured</b> - add API keys in Settings';
   }
   document.getElementById('runBtn').disabled = !k.connected;
 
@@ -855,14 +855,14 @@ function renderExec(){
           <td class="r dim num">${esc(r.tf)}</td>
           <td class="${r.qty<0?'down':'up'}"><b>${side}</b></td>
           <td class="r num">${fmt(Math.abs(r.qty),0)}</td>
-          <td class="r dim num">${r.alertPrice==null?'â€”':fmt(r.alertPrice,2)}</td>
+          <td class="r dim num">${r.alertPrice==null?'-':fmt(r.alertPrice,2)}</td>
           <td class="r num">${r.fut==null?'<span class="dim">pending</span>':fmt(r.fut,2)}</td>
           <td class="r"><input type="number" step="0.05" min="0" class="num"
             style="width:96px;text-align:right;padding:5px 8px"
             value="${r.manual==null?'':r.manual}"
             onchange="savePrice('${r.row}', this)" aria-label="My trade price"></td>
-          <td class="r num ${perUnit==null?'':(perUnit>0?'up':(perUnit<0?'down':''))}">${perUnit==null?'â€”':(perUnit>0?'+':'')+fmt(perUnit,2)}</td>
-          <td class="r num ${r.loss==null?'':(r.loss>0?'up':(r.loss<0?'down':''))}"><b>${r.loss==null?'â€”':(r.loss>0?'+':'')+fmt(r.loss,2)+'%'}</b></td>
+          <td class="r num ${perUnit==null?'':(perUnit>0?'up':(perUnit<0?'down':''))}">${perUnit==null?'-':(perUnit>0?'+':'')+fmt(perUnit,2)}</td>
+          <td class="r num ${r.loss==null?'':(r.loss>0?'up':(r.loss<0?'down':''))}"><b>${r.loss==null?'-':(r.loss>0?'+':'')+fmt(r.loss,2)+'%'}</b></td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="11" class="empty">No trades today. Older data is available in the Download tab.</td></tr>';
@@ -872,11 +872,11 @@ function renderExec(){
         const side = r.qty < 0 ? 'SELL' : 'BUY';
         return `
         <div class="mcard">
-          <div class="mc1"><span class="grow"><b>${esc(r.acc)}</b> Â· ${esc(r.stock)}</span>
+          <div class="mc1"><span class="grow"><b>${esc(r.acc)}</b>  -  ${esc(r.stock)}</span>
             <span class="t" style="font-size:11px;color:var(--soft);font-weight:500">${tfmt(r.time)}</span></div>
           <div class="mc2 num"><b class="${r.qty<0?'down':'up'}">${side}</b> ${fmt(Math.abs(r.qty),0)}
-            Â· Alert ${r.alertPrice==null?'â€”':fmt(r.alertPrice,2)}
-            Â· Fut ${r.fut==null?'<i>pending</i>':fmt(r.fut,2)}</div>
+             -  Alert ${r.alertPrice==null?'-':fmt(r.alertPrice,2)}
+             -  Fut ${r.fut==null?'<i>pending</i>':fmt(r.fut,2)}</div>
           <div class="mc3">
             <span class="num"><span class="lbl">My Price</span>
               <input type="number" step="0.05" min="0" class="num"
@@ -884,7 +884,7 @@ function renderExec(){
                 value="${r.manual==null?'':r.manual}"
                 onchange="savePrice('${r.row}', this)" aria-label="My trade price"></span>
             <span class="num"><span class="lbl">P/L</span>
-              <b class="${r.loss==null?'':(r.loss>0?'up':(r.loss<0?'down':''))}">${r.loss==null?'â€”':(r.loss>0?'+':'')+fmt(r.loss,2)+'%'}</b></span>
+              <b class="${r.loss==null?'':(r.loss>0?'up':(r.loss<0?'down':''))}">${r.loss==null?'-':(r.loss>0?'+':'')+fmt(r.loss,2)+'%'}</b></span>
           </div>
         </div>`;
       }).join('')
@@ -892,7 +892,7 @@ function renderExec(){
 
   const avgPct = wDen ? (wNum / wDen) * 100 : null;
   document.getElementById('execTotal').innerHTML = counted
-    ? `Avg execution P/L, value-weighted (${counted} filled): <b class="${avgPct>0?'up':(avgPct<0?'down':'')}">${avgPct>0?'+':''}${fmt(avgPct,2)}%</b> <span class="dim">(+ = profit, âˆ’ = loss)</span>`
+    ? `Avg execution P/L, value-weighted (${counted} filled): <b class="${avgPct>0?'up':(avgPct<0?'down':'')}">${avgPct>0?'+':''}${fmt(avgPct,2)}%</b> <span class="dim">(+ = profit, - = loss)</span>`
     : '';
 }
 
@@ -916,19 +916,19 @@ function runExec(){
   const btn = document.getElementById('runBtn');
   const info = document.getElementById('runInfo');
   const rows = filteredExecRows();
-  btn.disabled = true; btn.textContent = 'Runningâ€¦'; info.textContent = '';
+  btn.disabled = true; btn.textContent = 'Running...'; info.textContent = '';
   google.script.run
     .withSuccessHandler(res => {
-      btn.disabled = false; btn.textContent = 'Run â€” fetch futures prices';
+      btn.disabled = false; btn.textContent = 'Run - fetch futures prices';
       const fetched = res.fetched ?? res.updated ?? 0;
       info.textContent = 'Fetched ' + fetched +
         (res.failed ? ', failed ' + res.failed : '') +
         (res.remaining ? ', remaining ' + res.remaining + ' (run again)' : '') + '.';
-      if (res.errors && res.errors.length) showErr('Some rows failed: ' + res.errors.join(' Â· '));
+      if (res.errors && res.errors.length) showErr('Some rows failed: ' + res.errors.join('  -  '));
       loadExec();
     })
     .withFailureHandler(e => {
-      btn.disabled = false; btn.textContent = 'Run â€” fetch futures prices';
+      btn.disabled = false; btn.textContent = 'Run - fetch futures prices';
       showErr((e && e.message ? e.message : e));
     })
     .runExecutionLoss(rows);
@@ -952,15 +952,26 @@ function renderSettings(){
   const s = KSTATUS;
   const st = document.getElementById('kStatus');
   if (s.connected) {
-    st.innerHTML = '<b style="color:var(--up)">â— Connected</b> â€” session active for today (' + esc(s.tokenDate) + ')';
+    st.innerHTML = '<b style="color:var(--up)">* Connected</b> - session active for today (' + esc(s.tokenDate) + ')';
   } else if (s.configured) {
-    st.innerHTML = '<b style="color:var(--down)">â— Not connected today</b> â€” keys saved (' + esc(s.apiKeyMasked) + '), login to activate';
+    st.innerHTML = '<b style="color:var(--down)">* Not connected today</b> - keys saved (' + esc(s.apiKeyMasked) + '), login to activate';
   } else {
-    st.innerHTML = '<b style="color:var(--down)">â— Not configured</b> â€” save your API key and secret first';
+    st.innerHTML = '<b style="color:var(--down)">* Not configured</b> - save your API key and secret first';
   }
   document.getElementById('kLoginBtn').disabled = !s.configured;
   document.getElementById('kAppUrl').textContent = s.webAppUrl || '(deploy the web app to get the URL)';
   document.getElementById('whUrl').value = s.webhookUrl || '(deploy the web app first)';
+  renderCopyPositionAccounts();
+}
+
+function renderCopyPositionAccounts(){
+  const sel = document.getElementById('copyFromAcc');
+  if (!sel) return;
+  const keep = sel.value;
+  const accs = [...new Set((DATA.accounts || []).map(a => a.acc)
+    .concat(((CREATOR.master && CREATOR.master.accounts) || [])))].filter(Boolean).sort();
+  sel.innerHTML = '<option value="">From account</option>' +
+    accs.map(a => `<option ${a===keep?'selected':''} value="${esc(a)}">${esc(a)}</option>`).join('');
 }
 
 function saveKeys(){
@@ -1047,7 +1058,7 @@ function bootUsers(){
         '<div class="hint" style="line-height:1.5"><b>Could not load users.</b><br>' +
         'Server said: <span class="num">' + esc(e && e.message ? e.message : String(e)) + '</span><br><br>' +
         'If this mentions a missing sheet or function, open the Google Sheet and run ' +
-        '<b>SDT â†’ Run setup</b>, then reload. ' +
+        '<b>SDT -> Run setup</b>, then reload. ' +
         '<button class="btn sm" onclick="bootUsers()">Retry</button></div>';
     })
     .getUsers();
@@ -1087,7 +1098,7 @@ function enterAs(u){
   document.getElementById('userGate').style.display = 'none';
   const chip = document.getElementById('userChip');
   chip.hidden = false;
-  chip.textContent = u.name + (u.role === 'admin' ? ' Â· admin' : '');
+  chip.textContent = u.name + (u.role === 'admin' ? '  -  admin' : '');
   document.getElementById('logoutBtn').hidden = false;
   document.body.classList.toggle('op', u.role !== 'admin');
   renderUsersAdmin();
@@ -1145,7 +1156,7 @@ function uSave(i, btn){
   const accs = all ? '*' :
     [...row.querySelectorAll('input[data-acc]:checked')].map(x => x.dataset.acc).join(',');
   if (!accs) { showErr('Pick at least one account, or tick All accounts.'); return; }
-  btn.disabled = true; btn.textContent = 'Savingâ€¦';
+  btn.disabled = true; btn.textContent = 'Saving...';
   google.script.run
     .withSuccessHandler(us => { USERS = us; btn.disabled = false; btn.textContent = 'Save';
       if (CURRENT_USER) {
@@ -1258,6 +1269,51 @@ function saveDaySnapshot(btn){
     .saveDaySnapshot(ADMIN_PIN_CACHE);
 }
 
+function copyOpenPositions(btn){
+  clearErr();
+  const from = (document.getElementById('copyFromAcc')?.value || '').trim();
+  const to = (document.getElementById('copyToAcc')?.value || '').replace(/\|/g, '').trim().toUpperCase();
+  if (!from) { showErr('Select the source account first.'); return; }
+  if (!to) { showErr('Enter the new target account name.'); return; }
+  if (from.toUpperCase() === to.toUpperCase()) {
+    showErr('From and To account cannot be the same.');
+    return;
+  }
+  const phrase = 'COPY ' + from + ' TO ' + to;
+  const typed = prompt('This will copy current open positions from ' + from + ' to ' + to +
+    '. Existing open legs in ' + to + ' will be skipped. Type ' + phrase + ' to confirm.');
+  if (typed !== phrase) return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Copying...';
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.disabled = false;
+      btn.textContent = old;
+      if (res.master) {
+        CREATOR.master = res.master;
+        MASTER_EDIT = JSON.parse(JSON.stringify(res.master));
+      }
+      const out = document.getElementById('copyPosSaved');
+      if (out) {
+        out.textContent = 'Copied ' + (res.copied || 0) + ', skipped ' +
+          (res.skipped || 0) + ', added account ' + (res.addedAccount ? 'yes' : 'no') + '.';
+        out.hidden = false;
+        setTimeout(() => out.hidden = true, 8000);
+      }
+      document.getElementById('copyToAcc').value = '';
+      if (creatorLoaded) { renderCreatorForm(); renderMaster(); }
+      renderCopyPositionAccounts();
+      load(false);
+    })
+    .withFailureHandler(e => {
+      btn.disabled = false;
+      btn.textContent = old;
+      showErr('Could not copy positions: ' + (e && e.message ? e.message : e));
+    })
+    .copyOpenPositions(ADMIN_PIN_CACHE, from, to);
+}
+
 /* ---------- live P&L ---------- */
 let PLVIEW = 'acc';
 function setPlView(v){
@@ -1267,7 +1323,7 @@ function setPlView(v){
   renderPnl();
 }
 function plc(v){ return v==null?'':(v>0?'up':(v<0?'down':'flat')); }
-function plfmt(v){ return v==null?'â€”':(v>0?'+':'')+money(v); }
+function plfmt(v){ return v==null?'-':(v>0?'+':'')+money(v); }
 function clearPnlFilters(){
   ['plFilterAcc','plFilterStock'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   renderPnl();
@@ -1285,7 +1341,7 @@ function renderPnl(){
   const anySpot = rows.some(r => r.src === 'spot');
   document.getElementById('plNote').textContent =
     (anySpot ? 'LTP: spot fallback (login to Zerodha for futures rates)' : (rows.length ? 'LTP: current-month futures' : '')) +
-    (pnl.skipped ? ' Â· ' + pnl.skipped + ' unpriced trade(s) skipped' : '');
+    (pnl.skipped ? '  -  ' + pnl.skipped + ' unpriced trade(s) skipped' : '');
   if (PLVIEW === 'acc') {
     const g = {};
     rows.forEach(r => {
@@ -1310,21 +1366,21 @@ function renderPnl(){
         <td><b>${esc(r.acc)}</b></td>
         ${!scrip ? '' : '<td>'+esc(r.stock)+(r.src==='spot'?' <span class="dim" style="font-size:10px">(spot)</span>':'')+'</td>' +
           '<td class="r"><span class="pill num '+cls(r.pos)+'"><span class="'+cls(r.pos)+'">'+(r.pos>0?'+':'')+fmt(r.pos,0)+'</span></span></td>' +
-          '<td class="r dim num">'+(r.prev==null?'â€”':fmt(r.prev,2))+'</td>' +
-          '<td class="r dim num">'+(r.avg==null?'â€”':fmt(r.avg,2))+'</td>' +
-          '<td class="r dim num">'+(r.ltp==null?'â€”':fmt(r.ltp,2))+'</td>'}
+          '<td class="r dim num">'+(r.prev==null?'-':fmt(r.prev,2))+'</td>' +
+          '<td class="r dim num">'+(r.avg==null?'-':fmt(r.avg,2))+'</td>' +
+          '<td class="r dim num">'+(r.ltp==null?'-':fmt(r.ltp,2))+'</td>'}
         <td class="r num ${plc(r.dayPnl)}"><b>${plfmt(r.dayPnl)}</b></td>
         <td class="r num ${plc(r.realized)}">${plfmt(r.realized)}</td>
         <td class="r num ${plc(r.unrealized)}">${plfmt(r.unrealized)}</td>
         <td class="r num ${plc(r.total)}"><b>${plfmt(r.total)}</b></td>
       </tr>`).join('')
-    : '<tr><td colspan="9" class="empty">No priced trades yet â€” P&L appears once trades carry a price.</td></tr>';
+    : '<tr><td colspan="9" class="empty">No priced trades yet - P&L appears once trades carry a price.</td></tr>';
   document.getElementById('plCards').innerHTML = rows.length
     ? rows.map(r => `
       <div class="mcard">
-        <div class="mc1"><span class="grow"><b>${esc(r.acc)}</b>${r.stock?' Â· '+esc(r.stock):''}</span>
+        <div class="mc1"><span class="grow"><b>${esc(r.acc)}</b>${r.stock?'  -  '+esc(r.stock):''}</span>
           <span class="num ${plc(r.dayPnl)}"><b>Day ${plfmt(r.dayPnl)}</b></span></div>
-        ${r.stock && r.ltp!=null ? '<div class="mc2 num">Pos '+(r.pos>0?'+':'')+fmt(r.pos,0)+' Â· Prev '+(r.prev==null?'â€”':fmt(r.prev,2))+' Â· LTP '+fmt(r.ltp,2)+'</div>' : ''}
+        ${r.stock && r.ltp!=null ? '<div class="mc2 num">Pos '+(r.pos>0?'+':'')+fmt(r.pos,0)+'  -  Prev '+(r.prev==null?'-':fmt(r.prev,2))+'  -  LTP '+fmt(r.ltp,2)+'</div>' : ''}
         <div class="mc3"><span class="num"><span class="lbl">Realized</span>
             <b class="${plc(r.realized)}">${plfmt(r.realized)}</b></span>
           <span class="num"><span class="lbl">Unrealized</span>
@@ -1366,7 +1422,7 @@ function renderGrid(){
               const q = byInd[ind];
               const c = q > 0 ? 'long' : (q < 0 ? 'short' : '');
               const label = esc(tf) + (inds.length > 1 ? ` (${esc(indShort(ind))})` : '');
-              const full = [tf, ind].filter(Boolean).join(' Â· ');
+              const full = [tf, ind].filter(Boolean).join('  -  ');
               return `<span class="tfchip ${c}" title="${esc(full)} net ${q>0?'+':''}${fmt(q,0)}">${label}</span>`;
             }).join('');
           }).join('')}</span></div>`;
@@ -1455,9 +1511,9 @@ function renderLegMaster(){
         <td class="dim">${esc(r.ind)}</td>
         <td class="r dim num">${esc(r.tf)}</td>
         <td class="r num">${fmt(r.qty,0)}</td>
-        <td><button class="btn sm" onclick="removeLeg(${i}, this)">âœ• Remove</button></td>
+        <td><button class="btn sm" onclick="removeLeg(${i}, this)">x Remove</button></td>
       </tr>`).join('')
-    : '<tr><td colspan="6" class="empty">No legs yet â€” add every chart you run above.</td></tr>';
+    : '<tr><td colspan="6" class="empty">No legs yet - add every chart you run above.</td></tr>';
 }
 
 function addLegMaster(){
@@ -1480,10 +1536,10 @@ function addLegMaster(){
 
 function removeLeg(i, btn){
   const r = LEGMASTER[i];
-  btn.disabled = true; btn.textContent = 'Removingâ€¦';
+  btn.disabled = true; btn.textContent = 'Removing...';
   google.script.run
     .withSuccessHandler(() => { loadManual(); load(false); })
-    .withFailureHandler(e => { btn.disabled = false; btn.textContent = 'âœ• Remove';
+    .withFailureHandler(e => { btn.disabled = false; btn.textContent = 'x Remove';
       showErr((e && e.message ? e.message : e)); })
     .saveTotalQty({ acc: r.acc, stock: r.stock, ind: r.ind, tf: r.tf, lot: '', val: '' });
 }
@@ -1491,7 +1547,7 @@ function removeLeg(i, btn){
 function addManual(){
   clearErr();
   const btn = document.getElementById('mAddBtn');
-  btn.disabled = true; btn.textContent = 'Addingâ€¦';
+  btn.disabled = true; btn.textContent = 'Adding...';
   google.script.run
     .withSuccessHandler(() => {
       btn.disabled = false; btn.textContent = 'Add trade';
@@ -1562,7 +1618,7 @@ function doDownload(){
   if (!f) { showErr('Pick a From date.'); return; }
   const btn = document.getElementById('dlBtn');
   const st = document.getElementById('dlStatus');
-  btn.disabled = true; btn.textContent = 'Preparingâ€¦'; st.textContent = '';
+  btn.disabled = true; btn.textContent = 'Preparing...'; st.textContent = '';
   google.script.run
     .withSuccessHandler(res => {
       const bytes = Uint8Array.from(atob(res.base64), c => c.charCodeAt(0));
@@ -1573,7 +1629,7 @@ function doDownload(){
       a.download = res.filename;
       document.body.appendChild(a); a.click(); a.remove();
       btn.disabled = false; btn.textContent = 'Download Excel';
-      st.textContent = 'Downloaded ' + res.filename + ' â€” ' + res.counts.trades +
+      st.textContent = 'Downloaded ' + res.filename + ' - ' + res.counts.trades +
         ' trades, ' + res.counts.positions + ' positions, ' + res.counts.exec + ' exec rows.';
     })
     .withFailureHandler(e => {
@@ -1588,7 +1644,7 @@ function exportPos(){
   clearErr();
   const btn = document.getElementById('expPosBtn');
   const st = document.getElementById('posSnapStatus');
-  btn.disabled = true; btn.textContent = 'Exportingâ€¦';
+  btn.disabled = true; btn.textContent = 'Exporting...';
   google.script.run
     .withSuccessHandler(res => {
       btn.disabled = false; btn.textContent = 'Export open positions';
@@ -1597,7 +1653,7 @@ function exportPos(){
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = res.filename;
       document.body.appendChild(a); a.click(); a.remove();
-      st.textContent = 'Exported ' + res.count + ' open position(s) â†’ ' + res.filename;
+      st.textContent = 'Exported ' + res.count + ' open position(s) -> ' + res.filename;
     })
     .withFailureHandler(e => { btn.disabled = false; btn.textContent = 'Export open positions';
       showErr('Export failed: ' + (e && e.message ? e.message : e)); })
@@ -1610,7 +1666,7 @@ function importPos(){
   const st = document.getElementById('posSnapStatus');
   if (!f) { showErr('Choose the exported CSV file first.'); return; }
   const btn = document.getElementById('impPosBtn');
-  btn.disabled = true; btn.textContent = 'Importingâ€¦';
+  btn.disabled = true; btn.textContent = 'Importing...';
   const reader = new FileReader();
   reader.onerror = () => { btn.disabled = false; btn.textContent = 'Import';
     showErr('Could not read the file.'); };
@@ -1619,7 +1675,7 @@ function importPos(){
       .withSuccessHandler(res => {
         btn.disabled = false; btn.textContent = 'Import';
         st.textContent = 'Imported ' + res.imported + ' position(s)' +
-          (res.skipped ? ' Â· skipped ' + res.skipped + ' (already open / invalid)' : '') + ' âœ“';
+          (res.skipped ? '  -  skipped ' + res.skipped + ' (already open / invalid)' : '') + ' OK';
         document.getElementById('impFile').value = '';
         load(false);
       })
@@ -1640,7 +1696,7 @@ function loadScript(src){
 }
 async function shareElement(elId, filename, btn){
   try {
-    btn.disabled = true; btn.textContent = 'Preparingâ€¦';
+    btn.disabled = true; btn.textContent = 'Preparing...';
     if (!window.html2canvas) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
     }
@@ -1649,13 +1705,13 @@ async function shareElement(elId, filename, btn){
     canvas.toBlob(async blob => {
       const file = new File([blob], filename, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: 'SDT Dashboard â€” Account Exposure' }); }
+        try { await navigator.share({ files: [file], title: 'SDT Dashboard - Account Exposure' }); }
         catch (e) { /* user cancelled the share sheet */ }
       } else {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob); a.download = filename;
         document.body.appendChild(a); a.click(); a.remove();
-        showErr('Sharing is not supported in this browser â€” the image was downloaded instead; attach it in WhatsApp.');
+        showErr('Sharing is not supported in this browser - the image was downloaded instead; attach it in WhatsApp.');
       }
       btn.disabled = false; btn.textContent = 'Share';
     }, 'image/png');

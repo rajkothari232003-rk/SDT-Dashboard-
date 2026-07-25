@@ -348,6 +348,83 @@ const Server = {
     return { ok: true, date, accounts: accountRows.length, rows: doc.stockRows.length };
   },
 
+  async copyOpenPositions(pin, fromAcc, toAcc){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    await ensureReady();
+    const cleanAcc = s => String(s || '').replace(/\|/g, '').trim();
+    const from = cleanAcc(fromAcc);
+    const to = cleanAcc(toAcc).toUpperCase();
+    if (!from || !to) throw new Error('From and To account are required.');
+    if (from.toUpperCase() === to.toUpperCase()) throw new Error('From and To account cannot be the same.');
+
+    const master = CACHE.master || CONFIG.DEFAULT_MASTER;
+    const existsInMaster = (master.accounts || []).some(a => a.toUpperCase() === to.toUpperCase());
+    const nextMaster = existsInMaster ? master : Object.assign({}, master, {
+      accounts: [...(master.accounts || []), to]
+    });
+    if (!existsInMaster) {
+      await setDoc('config', 'master', nextMaster, false);
+      CACHE.master = nextMaster;
+    }
+
+    const positions = computePositions();
+    const avgMap = computeBookAvgByLeg();
+    const source = positions.filter(l => l.acc === from && Number(l.sumQty) !== 0);
+    if (!source.length) return { ok: true, copied: 0, skipped: 0, addedAccount: !existsInMaster, master: nextMaster };
+
+    const targetOpen = new Set(positions
+      .filter(l => l.acc.toUpperCase() === to.toUpperCase() && Number(l.sumQty) !== 0)
+      .map(l => legKey(to, l.stock, l.ind, l.tf)));
+    const now = new Date().toISOString();
+    let copied = 0, skipped = 0, legSizes = 0;
+
+    for (const l of source) {
+      const key = legKey(from, l.stock, l.ind, l.tf);
+      const targetKey = legKey(to, l.stock, l.ind, l.tf);
+      if (targetOpen.has(targetKey)) { skipped++; continue; }
+      const qty = Number(l.sumQty) || 0;
+      const avg = avgMap[key] && avgMap[key].pos !== 0 ? Number(avgMap[key].avg) : null;
+      if (avg == null || isNaN(avg)) { skipped++; continue; }
+      const doc = {
+        time: now,
+        acc: to,
+        stock: l.stock,
+        ind: l.ind,
+        tf: l.tf,
+        lot: l.lot === '' ? null : l.lot,
+        side: qty < 0 ? 'SELL' : 'BUY',
+        qty,
+        alertPx: avg,
+        pos: null,
+        srcId: 'copy:' + from,
+        executed: true,
+        futAtSignal: null,
+        tradePx: avg,
+        execPl: null
+      };
+      const fp = await fingerprintOf({
+        acc: doc.acc, stock: doc.stock, ind: doc.ind, tf: doc.tf,
+        qty: doc.qty, side: doc.side, price: doc.tradePx, time: doc.time
+      });
+      await createDocIfAbsent('trades', fp, doc);
+      targetOpen.add(targetKey);
+      copied++;
+
+      const srcSize = CACHE.legSizes.find(x => x.acc === from && x.stock === l.stock &&
+        x.ind === l.ind && x.tf === l.tf && Number(x.totalQty) > 0);
+      if (srcSize) {
+        await setDoc('legSizes', encodeURIComponent(targetKey), {
+          acc: to, stock: l.stock, ind: l.ind, tf: l.tf,
+          totalQty: Number(srcSize.totalQty) || 0
+        }, true);
+        legSizes++;
+      }
+    }
+
+    onDataChanged();
+    return { ok: true, copied, skipped, legSizes, addedAccount: !existsInMaster, master: nextMaster };
+  },
+
   async getDashboardData(){
     await ensureReady();
     const overrides = {};
