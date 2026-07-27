@@ -209,12 +209,15 @@ let quoteCache = { t: 0, data: null };
 async function fetchQuotes(stocks){
   // indices + spot LTPs (Yahoo, proxied) + futures LTP/prev (Kite, proxied)
   const now = Date.now();
+  const futOffset = Number(CACHE.config.futMonthOffset) || 0;
+  const key = stocks.join(',') + '|fut=' + futOffset;
   if (quoteCache.data && now - quoteCache.t < 12000 &&
-      quoteCache.key === stocks.join(',')) return quoteCache.data;
-  const r = await fetch('/api/quotes?stocks=' + encodeURIComponent(stocks.join(',')));
+      quoteCache.key === key) return quoteCache.data;
+  const r = await fetch('/api/quotes?stocks=' + encodeURIComponent(stocks.join(',')) +
+    '&futMonthOffset=' + futOffset);
   if (!r.ok) throw new Error('quotes proxy HTTP ' + r.status);
   const data = await r.json();
-  quoteCache = { t: now, key: stocks.join(','), data };
+  quoteCache = { t: now, key, data };
   return data;   // { indices:[...], spot:{S:{price,chg}}, fut:{S:{price,prev,src}} }
 }
 
@@ -514,6 +517,19 @@ const Server = {
              manual: v === '' ? null : v, loss: upd.execPl, executed: v !== '' };
   },
 
+  async saveFutSignal(id, price){
+    const v = (price === '' || price == null) ? '' : Number(price);
+    if (v !== '' && (isNaN(v) || v < 0)) throw new Error('Enter a valid futures price.');
+    const t = CACHE.trades.find(x => x.id === id);
+    if (!t) throw new Error('Trade not found.');
+    const upd = { futAtSignal: v === '' ? null : v, futManual: v !== '' };
+    upd.execPl = recomputeExecPl(Object.assign({}, t, upd));
+    await setDoc('trades', id, upd, true);
+    Object.assign(t, upd);
+    return { row: id, fut: v === '' ? null : v,
+             manual: t.tradePx == null ? null : Number(t.tradePx), loss: upd.execPl };
+  },
+
   async updateTrade(pin, id, p){
     if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
     const t = CACHE.trades.find(x => x.id === id);
@@ -801,9 +817,8 @@ const Server = {
     const scope = rowIds.size
       ? CACHE.trades.filter(t => rowIds.has(t.id))
       : CACHE.trades.filter(t => isTodayISO(t.time));
-    const pending = scope.filter(t =>
-      (t.futAtSignal == null || t.futAtSignal === '') && t.stock && t.time);
-    const need = pending.slice(0, 40).map(t => ({ id: t.id, stock: t.stock, time: t.time }));
+    const refreshable = scope.filter(t => t.futManual !== true && t.stock && t.time);
+    const need = refreshable.slice(0, 40).map(t => ({ id: t.id, stock: t.stock, time: t.time }));
     if (!need.length) return { fetched: 0, updated: 0, failed: 0, remaining: 0 };
     const r = await fetch('/api/kite', { method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -814,7 +829,7 @@ const Server = {
     for (const id of Object.keys(res)) {
       const t = CACHE.trades.find(x => x.id === id);
       if (!t || res[id] == null) continue;
-      const upd = { futAtSignal: res[id] };
+      const upd = { futAtSignal: res[id], futManual: false };
       upd.execPl = recomputeExecPl(Object.assign({}, t, upd));
       await setDoc('trades', id, upd, true);
       Object.assign(t, upd); updated++;
@@ -825,7 +840,7 @@ const Server = {
       fetched: updated,
       updated,
       failed: failedRows.length,
-      remaining: Math.max(0, pending.length - updated),
+      remaining: Math.max(0, refreshable.length - updated),
       errors: failedRows.slice(0, 6).map(x => x.stock + ' ' + new Date(x.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ': no futures candle')
     };
   },
@@ -833,9 +848,22 @@ const Server = {
 
   /* ---------- kite settings ---------- */
   async getKiteStatus(){
-    try { return await (await fetch('/api/kite?action=status')).json(); }
+    await ensureReady();
+    try {
+      const s = await (await fetch('/api/kite?action=status')).json();
+      s.futMonthOffset = Number(CACHE.config.futMonthOffset) || 0;
+      return s;
+    }
     catch (e) { return { configured: false, connected: false, webAppUrl: location.origin,
-      webhookUrl: '(deploy functions first)' }; }
+      webhookUrl: '(deploy functions first)', futMonthOffset: Number(CACHE.config.futMonthOffset) || 0 }; }
+  },
+  async saveFutMonthOffset(pin, offset){
+    if (!(await Server.verifyAdminPin(pin))) throw new Error('Admin PIN incorrect.');
+    const n = Math.max(0, Math.min(2, Number(offset) || 0));
+    await setDoc('config', 'app', { futMonthOffset: n }, true);
+    CACHE.config.futMonthOffset = n;
+    quoteCache = { t: 0, data: null };
+    return Server.getKiteStatus();
   },
   async saveKiteSettings(key, secret, pin){
     const r = await fetch('/api/kite', { method: 'POST',

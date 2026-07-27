@@ -6,7 +6,7 @@
 // ============================================================
 const crypto = require('crypto');
 const { getDb } = require('./lib-firebase');
-const { getKeys, getSession, authHeaders, futuresMap, pickFut } = require('./lib-kite');
+const { getKeys, getSession, authHeaders, futuresMap, pickFut, getFutMonthOffset } = require('./lib-kite');
 
 const json = (code, obj) => ({ statusCode: code,
   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
@@ -30,7 +30,8 @@ exports.handler = async (event) => {
           ? 'https://kite.zerodha.com/connect/login?v=3&api_key=' +
             encodeURIComponent(keys.apiKey) : '',
         webAppUrl: site,
-        webhookUrl: site ? site + '/api/webhook?token=' + (process.env.WEBHOOK_TOKEN || 'SET_WEBHOOK_TOKEN') : ''
+        webhookUrl: site ? site + '/api/webhook?token=' + (process.env.WEBHOOK_TOKEN || 'SET_WEBHOOK_TOKEN') : '',
+        futMonthOffset: await getFutMonthOffset()
       });
     }
 
@@ -88,11 +89,12 @@ exports.handler = async (event) => {
       if (!headers) return json(400, { error: 'Kite session inactive — login in Settings first.' });
       const stocks = [...new Set(rows.map(r => String(r.stock)))];
       const maps = await futuresMap(stocks, headers, false);
+      const offset = await getFutMonthOffset();
       const out = {};
       for (const row of rows) {
         const when = new Date(row.time);
         if (isNaN(when.getTime())) continue;
-        const fut = pickFut(maps[String(row.stock)], when);
+        const fut = pickFut(maps[String(row.stock)], when, offset);
         if (!fut) continue;
         const day = when.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         const hm = when.toLocaleTimeString('en-GB',

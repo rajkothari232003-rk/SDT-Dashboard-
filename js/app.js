@@ -35,9 +35,9 @@ function money(v){
   const n = Number(v);
   if (v == null || isNaN(n)) return '-';
   const a = Math.abs(n), sign = n < 0 ? '-' : '';
-  if (a >= 1e7) return sign + 'Rs ' + (a/1e7).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' Cr';
-  if (a >= 1e5) return sign + 'Rs ' + (a/1e5).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
-  return sign + 'Rs ' + a.toLocaleString('en-IN',{maximumFractionDigits:0});
+  if (a >= 1e7) return sign + (a/1e7).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' Cr';
+  if (a >= 1e5) return sign + (a/1e5).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
+  return sign + a.toLocaleString('en-IN',{maximumFractionDigits:0});
 }
 function tfmt(iso){
   if (!iso) return '';
@@ -164,26 +164,13 @@ function render(){
   document.getElementById('expBody').innerHTML = accs.length
     ? accs.map(a => `
       <tr>
-        <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!${a.missing}</span>' : ''}</td>
-        <td class="r">${fundCell(a,'total')}</td>
-        <td class="r">${fundCell(a,'used')}</td>
-        <td class="r num ${a.netAvail==null?'':cls(a.netAvail)}"><b>${a.netAvail==null?'-':money(a.netAvail)}</b></td>
-        <td class="r num ${cls(a.net)}"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
-        <td class="r num"><b>${money(a.gross)}</b></td>
-        <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
-        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
-      </tr>`).join('')
-    : '<tr><td colspan="8" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
-
-  document.getElementById('expBody').innerHTML = accs.length
-    ? accs.map(a => `
-      <tr>
         <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!</span>' : ''}</td>
-        <td class="r num ${cls(a.net)}"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
-        <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
-        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
+        <td class="r num"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
+        <td class="r num"><b>${money(a.gross)}</b></td>
+        <td class="r num">${fmt(a.pct,1)}%</td>
+        <td class="r num"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
       </tr>`).join('')
-    : '<tr><td colspan="4" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
+    : '<tr><td colspan="5" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
 
   document.getElementById('fundBody').innerHTML = accs.length
     ? accs.map(a => `
@@ -548,6 +535,26 @@ function savePrice(row, input){
     .saveManualPrice(row, val);
 }
 
+function saveFutSignal(row, input){
+  const val = input.value === '' ? '' : Number(input.value);
+  input.disabled = true;
+  google.script.run
+    .withSuccessHandler(res => {
+      if (EXEC.rows) {
+        const er = EXEC.rows.find(x => x.row === res.row);
+        if (er) { er.fut = res.fut; er.loss = res.loss; }
+      }
+      input.disabled = false;
+      renderExec();
+      load(false);
+    })
+    .withFailureHandler(e => {
+      input.disabled = false;
+      showErr('Could not save futures price: ' + (e && e.message ? e.message : e));
+    })
+    .saveFutSignal(row, val);
+}
+
 /* ---------- creator tab ---------- */
 function loadCreator(){
   google.script.run
@@ -856,7 +863,11 @@ function renderExec(){
           <td class="${r.qty<0?'down':'up'}"><b>${side}</b></td>
           <td class="r num">${fmt(Math.abs(r.qty),0)}</td>
           <td class="r dim num">${r.alertPrice==null?'-':fmt(r.alertPrice,2)}</td>
-          <td class="r num">${r.fut==null?'<span class="dim">pending</span>':fmt(r.fut,2)}</td>
+          <td class="r"><input type="number" step="0.05" min="0" class="num"
+            style="width:96px;text-align:right;padding:5px 8px"
+            placeholder="pending"
+            value="${r.fut==null?'':r.fut}"
+            onchange="saveFutSignal('${r.row}', this)" aria-label="Futures signal price"></td>
           <td class="r"><input type="number" step="0.05" min="0" class="num"
             style="width:96px;text-align:right;padding:5px 8px"
             value="${r.manual==null?'':r.manual}"
@@ -876,7 +887,11 @@ function renderExec(){
             <span class="t" style="font-size:11px;color:var(--soft);font-weight:500">${tfmt(r.time)}</span></div>
           <div class="mc2 num"><b class="${r.qty<0?'down':'up'}">${side}</b> ${fmt(Math.abs(r.qty),0)}
              -  Alert ${r.alertPrice==null?'-':fmt(r.alertPrice,2)}
-             -  Fut ${r.fut==null?'<i>pending</i>':fmt(r.fut,2)}</div>
+             -  Fut <input type="number" step="0.05" min="0" class="num"
+                style="width:88px;text-align:right;padding:4px 7px"
+                placeholder="pending"
+                value="${r.fut==null?'':r.fut}"
+                onchange="saveFutSignal('${r.row}', this)" aria-label="Futures signal price"></div>
           <div class="mc3">
             <span class="num"><span class="lbl">My Price</span>
               <input type="number" step="0.05" min="0" class="num"
@@ -961,7 +976,36 @@ function renderSettings(){
   document.getElementById('kLoginBtn').disabled = !s.configured;
   document.getElementById('kAppUrl').textContent = s.webAppUrl || '(deploy the web app to get the URL)';
   document.getElementById('whUrl').value = s.webhookUrl || '(deploy the web app first)';
+  renderFutMonthOptions();
   renderCopyPositionAccounts();
+}
+
+function renderFutMonthOptions(){
+  const sel = document.getElementById('futMonthOffset');
+  if (!sel) return;
+  const keep = String(KSTATUS.futMonthOffset ?? 0);
+  const labels = ['Current', 'Next', 'Next 2'];
+  const base = new Date();
+  sel.innerHTML = [0, 1, 2].map(offset => {
+    const d = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+    const month = d.toLocaleString('en-IN', { month: 'short', year: 'numeric' }).toUpperCase();
+    return `<option value="${offset}" ${String(offset)===keep?'selected':''}>${labels[offset]} - ${month}</option>`;
+  }).join('');
+}
+
+function saveFutMonth(){
+  clearErr();
+  const offset = Number(document.getElementById('futMonthOffset').value || 0);
+  google.script.run
+    .withSuccessHandler(s => {
+      KSTATUS = s; renderSettings();
+      const tag = document.getElementById('futMonthSaved');
+      tag.hidden = false; setTimeout(() => tag.hidden = true, 1800);
+      load(false);
+      if (!document.getElementById('viewExec').hidden) loadExec();
+    })
+    .withFailureHandler(e => showErr('Could not save futures month: ' + (e && e.message ? e.message : e)))
+    .saveFutMonthOffset(ADMIN_PIN_CACHE, offset);
 }
 
 function renderCopyPositionAccounts(){

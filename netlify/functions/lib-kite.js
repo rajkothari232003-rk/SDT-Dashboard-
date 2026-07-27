@@ -21,6 +21,15 @@ async function authHeaders(){
   return { 'X-Kite-Version': '3',
            'Authorization': 'token ' + keys.apiKey + ':' + sess.accessToken };
 }
+async function getFutMonthOffset(){
+  try {
+    const d = await getDb().collection('config').doc('app').get();
+    const n = d.exists ? Number(d.data().futMonthOffset) : 0;
+    return Math.max(0, Math.min(2, isNaN(n) ? 0 : n));
+  } catch (e) {
+    return 0;
+  }
+}
 
 /** current-month futures contracts per stock, cached in Firestore for 6h */
 async function futuresMap(stocks, headers, cacheOnly){
@@ -66,11 +75,11 @@ async function futuresMap(stocks, headers, cacheOnly){
   return out;
 }
 
-function pickFut(list, date){
+function pickFut(list, date, offset){
   if (!list || !list.length) return null;
   const day = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  for (const f of list) if (f.expiry >= day) return f;
-  return null;
+  const live = list.filter(f => f.expiry >= day);
+  return live[Math.max(0, Math.min(2, Number(offset) || 0))] || live[0] || null;
 }
 
 /** live LTP + previous close for the current-month future of each stock */
@@ -78,8 +87,9 @@ async function kiteQuoteFut(stocks, cacheOnly){
   const headers = await authHeaders();
   if (!headers) return {};
   const maps = await futuresMap(stocks, headers, !!cacheOnly);
+  const offset = await getFutMonthOffset();
   const symFor = {};
-  stocks.forEach(s => { const f = pickFut(maps[s], new Date()); if (f) symFor[s] = f.symbol; });
+  stocks.forEach(s => { const f = pickFut(maps[s], new Date(), offset); if (f) symFor[s] = f.symbol; });
   const syms = Object.values(symFor);
   if (!syms.length) return {};
   const url = 'https://api.kite.trade/quote?' +
@@ -98,4 +108,4 @@ async function kiteQuoteFut(stocks, cacheOnly){
   return out;
 }
 
-module.exports = { getKeys, getSession, authHeaders, futuresMap, pickFut, kiteQuoteFut };
+module.exports = { getKeys, getSession, authHeaders, futuresMap, pickFut, kiteQuoteFut, getFutMonthOffset };
