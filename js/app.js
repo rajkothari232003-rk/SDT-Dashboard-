@@ -35,8 +35,8 @@ function money(v){
   const n = Number(v);
   if (v == null || isNaN(n)) return '-';
   const a = Math.abs(n), sign = n < 0 ? '-' : '';
-  if (a >= 1e7) return sign + (a/1e7).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' Cr';
-  if (a >= 1e5) return sign + (a/1e5).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
+  if (a >= 1e7) return sign + (a/1e7).toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' Cr';
+  if (a >= 1e5) return sign + (a/1e5).toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' L';
   return sign + a.toLocaleString('en-IN',{maximumFractionDigits:0});
 }
 function tfmt(iso){
@@ -165,10 +165,10 @@ function render(){
     ? accs.map(a => `
       <tr>
         <td><b>${esc(a.acc)}</b>${a.missing ? ' <span title="legs missing a market rate" style="color:#b07b00">!</span>' : ''}</td>
-        <td class="r num"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
         <td class="r num"><b>${money(a.gross)}</b></td>
-        <td class="r num">${fmt(a.pct,1)}%</td>
-        <td class="r num"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
+        <td class="r num"><b>${a.net>0?'+':''}${money(a.net)}</b></td>
+        <td class="r num ${cls(a.net)}">${fmt(a.pct,1)}%</td>
+        <td class="r num ${accDay[a.acc]==null?'':cls(accDay[a.acc])}"><b>${accDay[a.acc]==null?'-':(accDay[a.acc]>0?'+':'')+money(accDay[a.acc])}</b></td>
       </tr>`).join('')
     : '<tr><td colspan="5" class="empty">No positions yet. Fire a TradingView alert to begin.</td></tr>';
 
