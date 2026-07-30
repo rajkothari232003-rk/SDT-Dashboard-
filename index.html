@@ -124,6 +124,11 @@
   .pill.flat{background:var(--flat-bg)}
   .empty{padding:26px 16px;color:var(--muted);font-size:13px;text-align:center}
   .summary-table{min-width:620px}
+  #exposureWrap .summary-table{table-layout:fixed}
+  #exposureWrap .summary-table th,
+  #exposureWrap .summary-table td{padding-left:8px;padding-right:8px}
+  #exposureWrap .summary-table th:first-child,
+  #exposureWrap .summary-table td:first-child{width:18%}
   .screenshot-grid .grow-row{padding:4px 0}
   .screenshot-grid .grow-row .stk{font-size:11px;width:110px}
   .screenshot-grid .tfchip{font-size:10px;padding:3px 7px}
@@ -421,10 +426,12 @@
           <button id="plAcc" class="on" onclick="setPlView('acc')">By Account</button>
           <button id="plScrip" onclick="setPlView('scrip')">Account &amp; Scrip</button>
         </div>
+        <button class="btn sm" onclick="downloadPnl()">Download P&amp;L</button>
         <span class="hint" id="plNote"></span>
       </div>
-      <div class="hint" style="margin:6px 0 10px">Day-wise = open position x (futures LTP -
-        futures previous close). Realized / Unrealized / Total use average cost from your trades.</div>
+      <div class="hint" style="margin:6px 0 10px">Day-wise P&amp;L uses broker-style Account + Stock
+        buckets: carryforward opens at futures previous close, today's trades use Trade PX first,
+        then Fut @ Signal, then Alert PX.</div>
       <div class="filters" style="margin:0 0 12px">
         <select id="plFilterAcc" onchange="renderPnl()"><option value="">All accounts</option></select>
         <select id="plFilterStock" onchange="renderPnl()"><option value="">All stocks</option></select>

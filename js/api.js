@@ -137,6 +137,9 @@ function applyAvgTrade(p, qty, price){
 }
 
 function computePnl(futLtps){
+  // Broker-style day MTM for P&L only:
+  // Account + Stock bucket, carryforward opens at futures previous close,
+  // today's trades use Trade PX -> Fut @ Signal -> Alert PX, then weighted avg.
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
   const startMs = dayStart.getTime();

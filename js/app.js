@@ -562,7 +562,7 @@ function loadCreator(){
       CREATOR = d;
       MASTER_EDIT = JSON.parse(JSON.stringify(d.master));
       creatorLoaded = true;
-      renderCreatorForm(); renderMaster(); renderHistory();
+      renderCreatorForm(); renderMaster(); renderHistory(); renderUsersAdmin();
     })
     .withFailureHandler(e => showErr('Could not load creator data: ' + (e && e.message ? e.message : e)))
     .getCreatorData();
@@ -1170,7 +1170,10 @@ function renderUsersAdmin(){
   const dataBox = document.getElementById('dataAdminBox');
   if (dataBox) dataBox.hidden = !isAdmin;
   if (!isAdmin) return;
-  const accs = (DATA.accounts || []).map(a => a.acc);
+  const accountChoices = (DATA.accounts || []).map(a => a.acc)
+    .concat(((CREATOR.master && CREATOR.master.accounts) || []))
+    .concat(USERS.flatMap(u => u.accounts === '*' ? [] : String(u.accounts || '').split(',')));
+  const accs = [...new Set(accountChoices.map(s => String(s || '').trim()).filter(Boolean))].sort();
   document.getElementById('usersBody').innerHTML = USERS.map((u, i) => {
     const all = u.accounts === '*';
     const set = new Set(all ? [] : u.accounts.split(',').map(s => s.trim()));
@@ -1372,6 +1375,56 @@ function clearPnlFilters(){
   ['plFilterAcc','plFilterStock'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   renderPnl();
 }
+function filteredPnlRows(){
+  const pnl = DATA.pnl || { rows: [], skipped: 0 };
+  const fAcc = document.getElementById('plFilterAcc')?.value || '';
+  const fStock = document.getElementById('plFilterStock')?.value || '';
+  return (pnl.rows || []).filter(r => (!fAcc || r.acc === fAcc) && (!fStock || r.stock === fStock));
+}
+function accountPnlRows(rows){
+  const g = {};
+  rows.forEach(r => {
+    if (!g[r.acc]) g[r.acc] = { acc:r.acc, realized:0, unrealized:0, day:0,
+                                incomplete:false, dayIncomplete:false };
+    const a = g[r.acc];
+    a.realized += r.realized;
+    if (r.unrealized == null) a.incomplete = true; else a.unrealized += r.unrealized;
+    if (r.dayPnl == null) a.dayIncomplete = true; else a.day += r.dayPnl;
+  });
+  return Object.values(g).map(a => ({ acc:a.acc, stock:null, realized:a.realized,
+    unrealized:a.incomplete?null:a.unrealized,
+    dayPnl:a.dayIncomplete?null:a.day,
+    total:a.incomplete?null:a.realized+a.unrealized }));
+}
+function downloadPnl(){
+  clearErr();
+  const rows = filteredPnlRows();
+  if (!rows.length) { showErr('No P&L rows to download.'); return; }
+  const wb = XLSX.utils.book_new();
+  const num = v => v == null ? '' : Number(v);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accountPnlRows(rows).map(r => ({
+    Account: r.acc,
+    'Day-wise P&L': num(r.dayPnl),
+    Realized: num(r.realized),
+    Unrealized: num(r.unrealized),
+    'Total P/L': num(r.total)
+  }))), 'Account Summary');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(r => ({
+    Account: r.acc,
+    Stock: r.stock,
+    Position: num(r.pos),
+    'Prev Close': num(r.prev),
+    Avg: num(r.avg),
+    LTP: num(r.ltp),
+    'Day-wise P&L': num(r.dayPnl),
+    Realized: num(r.realized),
+    Unrealized: num(r.unrealized),
+    'Total P/L': num(r.total)
+  }))), 'Account Scrip');
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  XLSX.writeFile(wb, 'SDT_PnL_' + d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + '.xlsx');
+}
 function renderPnl(){
   const pnl = DATA.pnl || { rows: [], skipped: 0 };
   const baseRows = pnl.rows || [];
@@ -1379,27 +1432,13 @@ function renderPnl(){
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   syncAlertFilter('plFilterAcc', uniq('acc'), 'All accounts');
   syncAlertFilter('plFilterStock', uniq('stock'), 'All stocks');
-  const fAcc = document.getElementById('plFilterAcc')?.value || '';
-  const fStock = document.getElementById('plFilterStock')?.value || '';
-  let rows = baseRows.filter(r => (!fAcc || r.acc === fAcc) && (!fStock || r.stock === fStock));
+  let rows = filteredPnlRows();
   const anySpot = rows.some(r => r.src === 'spot');
   document.getElementById('plNote').textContent =
     (anySpot ? 'LTP: spot fallback (login to Zerodha for futures rates)' : (rows.length ? 'LTP: current-month futures' : '')) +
     (pnl.skipped ? '  -  ' + pnl.skipped + ' unpriced trade(s) skipped' : '');
   if (PLVIEW === 'acc') {
-    const g = {};
-    rows.forEach(r => {
-      if (!g[r.acc]) g[r.acc] = { acc:r.acc, realized:0, unrealized:0, day:0,
-                                  incomplete:false, dayIncomplete:false };
-      const a = g[r.acc];
-      a.realized += r.realized;
-      if (r.unrealized == null) a.incomplete = true; else a.unrealized += r.unrealized;
-      if (r.dayPnl == null) a.dayIncomplete = true; else a.day += r.dayPnl;
-    });
-    rows = Object.values(g).map(a => ({ acc:a.acc, stock:null, realized:a.realized,
-      unrealized:a.incomplete?null:a.unrealized,
-      dayPnl:a.dayIncomplete?null:a.day,
-      total:a.incomplete?null:a.realized+a.unrealized }));
+    rows = accountPnlRows(rows);
   }
   const scrip = PLVIEW !== 'acc';
   ['plStockTh','plPosTh','plPrevTh','plAvgTh','plLtpTh'].forEach(id =>
