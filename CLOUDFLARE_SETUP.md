@@ -8,6 +8,7 @@ This keeps the app behavior the same as Netlify:
 - `/api/webhook` receives TradingView alerts.
 - Firebase Firestore remains the database.
 - `_routes.json` sends only `/api/*` to Functions, so normal dashboard files stay static.
+- `build-cloudflare.sh` copies only the dashboard files into `public`, so build-time folders like `node_modules` are not deployed as assets.
 
 ## 1. Create Cloudflare Pages project
 
@@ -18,8 +19,8 @@ This keeps the app behavior the same as Netlify:
 5. Connect the GitHub repository.
 6. Build settings:
    - Framework preset: None
-   - Build command: leave blank
-   - Build output directory: `.`
+   - Build command: `sh build-cloudflare.sh`
+   - Build output directory: `public`
    - Functions directory: `functions` if Cloudflare asks.
 
 ## 2. Add environment variables
